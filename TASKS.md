@@ -289,5 +289,66 @@ calibrated product type used throughout this session — a calibrated-vs-raw rad
 the leading hypothesis and hasn't been tested; (b) try much smaller, more textured sub-crops within
 each confirmed-overlap region rather than large crops that may dilute the actually-overlapping area.
 
+## Same-sensor sanity check — isolating the failure to match-selection, not cross-sensor gap
+
+Rather than keep varying real Chandrayaan-2/NAC pairs blindly, ran a structured diagnostic on
+**NAC-vs-NAC** pairs (same instrument, same processing, no cross-sensor variable at all) to find
+out whether the 24 failed cross-sensor attempts reflect a genuine sensor domain gap or a deeper
+pipeline issue that would show up even without one.
+
+**Attempt 1** (`M1306094925LE` vs `M1444613697RE`, two different real orbits): my first-pass visual
+check (full blend + checkerboard) looked plausible — continuous texture, no obvious tear. That was
+**wrong**, caught only by the next step: picking one genuinely distinctive feature (a dark elongated
+shadow) and confirming it lands on the same content in both images at the aligned coordinate. It
+didn't — completely different terrain. The pipeline's own scale estimate (13.06x for a same-instrument
+pair, physically impossible) was the real tell; the blend/checkerboard check alone wasn't rigorous
+enough on self-similar crater terrain to catch this. **Verification-standard update**: always do a
+targeted unique-feature check, not just a blend/checkerboard, on lunar imagery specifically.
+
+**Attempt 2** (`M1382845798LE` vs `M1394580363RE`, different orbits 136 days apart, deliberately
+chosen for high-confidence heavy overlap — 55%/77% of each frame's real footprint, confirmed via KML
+corner geometry, not a marginal edge case): added the diagnostic of computing pairwise scale/rotation
+agreement across all *raw* matches, before RANSAC even runs — a real match set should cluster tightly
+around the true scale/rotation; noise should scatter.
+
+- **Raw SIFT**: 13 matches. Pairwise rotation spans the *full ±180° range* (p10=-172°, p90=+174°) —
+  statistically indistinguishable from random. Not "some good matches diluted by noise" — the match
+  set itself carries essentially no real geometric signal.
+- **Raw LoFTR**: better but still failing — 170 matches, tighter scale IQR (0.86-1.42 vs SIFT's
+  0.80-2.81) but rotation std still 42.6° (should be near 0 for a true match set). Final MAGSAC++
+  fit: 6/170 inliers (3.5%), and the visual unique-feature check confirmed it's wrong (dense
+  dark-shadowed crater field warped onto bright sparse terrain — nothing alike).
+- **Ruled out "bad overlap region" as the cause**: found and fixed a real crop-alignment bug (two
+  NAC frames have different pixels-per-degree along-track — 15,004 vs 15,791 px/° for this pair —
+  so naively slicing "the same pixel range" from both doesn't hit the same latitude band). Recomputed
+  a precisely lat-band-matched crop (both frames sliced to exactly -20.3° to -19.8°) using each
+  frame's real corner geometry and reran: **no change** — SIFT and LoFTR both still failed the same
+  way (rotation std 96.6°/50.5°, homography singular-value ratios 15:1 and 13:1, i.e. severe
+  shear/degenerate transforms). This conclusively rules out crop imprecision as the explanation.
+
+**External corroboration**: re-examined all 5 reference repos specifically for this problem.
+L2AMF-Net (zwh0527) is trained/validated only on synthetic self-pair perturbations of a single
+source image — same category of test this project already exceeds (98-99.76%), no evidence it
+handles genuinely different real acquisitions. astroclubiitk (Inter-IIT team, same real
+Chandrayaan-2↔NAC registration problem) has **zero automated feature-matching code anywhere in
+their repo** — their `final_gen.py` script computes scale ratio from images that are already
+aligned, and per their own README that alignment was done **entirely by hand in GIMP**, rotating
+and scaling by eye until craters visually lined up. A resourced team working the same real problem
+also did not solve it algorithmically.
+
+**Conclusion**: the failure is not explained by cross-sensor domain gap, bad overlap-region
+selection, or crop-alignment imprecision — all three were tested and ruled out or shown not to
+matter. It reproduces on same-sensor, same-processing, heavy-confirmed-overlap, high-texture real
+lunar pairs, with both a classical and a deep matcher, and independent evidence suggests at least
+one other team hit the same wall. This is a genuine, hard, presentable finding: **automated feature
+matching on repetitive lunar crater terrain is failing at the match-selection stage** — raw
+correspondences carry too little real geometric signal for MAGSAC++/RANSAC to recover a reliable
+fit, not because the geometric verification step is broken, but because it's being handed noise.
+Concrete unexplored directions for whoever continues this: local patch-level descriptor learning
+specifically trained to disambiguate near-identical craters (the problem L2AMF-Net's architecture
+targets, though untested on real cross-sensor data); or accepting manual/semi-automated
+seed-point registration (consistent with what the Inter-IIT team ultimately did) as the practical
+answer for this class of terrain.
+
 ## Notes / deviations
 - LoFTR (deep matcher) requires torch+kornia (~GBs). Wired behind a try/import with automatic fallback to classical if unavailable, so the system never breaks if the ML stack isn't installed. Documented in README with install instructions to enable it.
