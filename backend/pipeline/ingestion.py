@@ -136,3 +136,48 @@ def to_uint8(gray: np.ndarray) -> np.ndarray:
         lo, hi = float(gray.min()), float(gray.max() or 1.0)
     stretched = np.clip((gray - lo) / max(hi - lo, 1e-6), 0, 1)
     return (stretched * 255).astype(np.uint8)
+
+
+def to_uint8_adaptive(gray: np.ndarray, safety_percentile: tuple = (2, 98),
+                       iqr_multiplier: float = 3.0) -> np.ndarray:
+    """Per-image adaptive percentile stretch — a display/preview-quality fix,
+    NOT used by the matching pipeline (that still calls the fixed-p1/p99
+    `to_uint8` above; changing that would silently alter matching inputs
+    without the re-validation that deserves).
+
+    Found via histogram diagnostic: ~1/3 of our real NAC frames (7/21) have
+    real terrain content concentrated in a much tighter DN band than their
+    own p1-p99 span suggests (e.g. M1385774154LE: raw IQR=7 within a p1-p99
+    span of 124) — a sparse, low-density tail of shadow/bright pixels drags
+    the global percentile stretch bounds wide, wasting most of the 0-255
+    output range on content that barely exists. Confirmed via direct
+    saturation check (0% of pixels at/near the raw max) that this is real,
+    uncompressed detail, not clipped/lost data — so a smarter stretch, not
+    exclusion, is the correct fix.
+
+    Bounds are set from the image's own dense core: median +/- iqr_multiplier
+    * IQR, intersected with a loose `safety_percentile` band so a frame with
+    a genuinely wide real distribution isn't over-tightened. This lets images
+    like M1385774154LE actually use the available output range without fully
+    discarding the real (if sparse) shadow/bright tail — those pixels still
+    clip to 0/255 rather than vanishing, same as any percentile stretch, but
+    only the truly sparse extremes do, not the dense core that used to share
+    their fate."""
+    sample = gray
+    if gray.size > 2_000_000:
+        rng = np.random.default_rng(0)
+        idx = rng.integers(0, gray.size, size=2_000_000)
+        sample = gray.ravel()[idx]
+    p_lo_safety, p_hi_safety = np.percentile(sample, safety_percentile)
+    median = np.median(sample)
+    q1, q3 = np.percentile(sample, [25, 75])
+    iqr = q3 - q1
+    if iqr <= 0:
+        lo, hi = float(p_lo_safety), float(p_hi_safety)
+    else:
+        lo = max(float(p_lo_safety), float(median - iqr_multiplier * iqr))
+        hi = min(float(p_hi_safety), float(median + iqr_multiplier * iqr))
+    if hi <= lo:
+        lo, hi = float(gray.min()), float(gray.max() or 1.0)
+    stretched = np.clip((gray - lo) / max(hi - lo, 1e-6), 0, 1)
+    return (stretched * 255).astype(np.uint8)
