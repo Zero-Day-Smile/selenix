@@ -350,5 +350,78 @@ targets, though untested on real cross-sensor data); or accepting manual/semi-au
 seed-point registration (consistent with what the Inter-IIT team ultimately did) as the practical
 answer for this class of terrain.
 
+## Geometry-guided disambiguation attempts and two real bugs fixed (this session, part 4)
+
+Follow-on to the match-selection-failure diagnosis above. Tried four independent strategies to
+break the repetitive-crater ambiguity, each with the same diagnostic discipline (raw match count,
+pairwise scale/rotation consistency, MAGSAC++ inlier %, and a mandatory targeted distinctive-feature
+check before accepting any result as real).
+
+**Two real bugs found and fixed along the way**, both in `backend/pipeline/geo_extent_guard.py`
+(new module):
+- **Corner-cut / boundary-collapse bug**: predicting a NAC (line,sample) location from lon/lat via
+  4-corner bilinear interpolation collapses to a boundary value for points inside the axis-aligned
+  lon/lat bounding box but outside the true *rotated* quadrilateral, silently corrupting any
+  min/max-derived search region. Fixed by computing a bilinear fit residual per point and filtering
+  on `residual < 1e-4` (`nac_corner_bilinear_fit`).
+- **Crop-extent mismatch**: selecting a TMC crop from the lon/lat bounding box of "points near the
+  NAC footprint" can select TMC content *wider than NAC's own native swath* — content with no
+  possible NAC correspondence regardless of method. Regression-checked against all 20 real pairs
+  still on disk (`backend/data/real/_regression_extent_check.py`): **8/20 pairs had a genuine extent
+  mismatch**; the other 12/20 did not and still failed matching, so this bug is real but not the
+  dominant cause of the overall failure.
+
+**Strategy 1 — geometry-windowed template correlation** (`_geo_constrained_test.py`): predicts a
+local NAC window via real geometry, scale-corrects the TMC patch to match NAC's real GSD
+(`SCALE_TMC_TO_NAC = 2.5769`), does `cv2.matchTemplate` in the window. Result: 1 weak candidate at
+NCC 0.55 — the window (~600x600 NAC px) still contains multiple similar small craters.
+
+**Strategy 2 — geometry-windowed LoFTR** (in the same window as strategy 1): 110 raw matches
+(conf 0.20-0.72, well above strategy 1's single weak candidate) — but pairwise rotation scatter
+std=74.4° (a real match set should cluster near 0), and MAGSAC++ found only 8/110 (7.3%) inliers.
+Visual check on the warped blend: the warped crater texture does not correspond to the underlying
+craters at all — a degenerate/spurious homography, not a real one. LoFTR's richer features find
+*more* candidates but do not resolve the ambiguity; same failure signature as blind global matching.
+
+**Strategy 3 — 3D crater-geometry disambiguation (elevation-based) — ruled out at the feasibility
+check, not attempted**: LOLA's finest global gridded DEM product is ~59 m/px; the craters causing
+ambiguity in our real pairs are ~50-200m features (3-4 DEM pixels across at best) — not enough
+resolution for real depth/diameter/rim-shape descriptors. NAC-derived stereo DTMs exist only for a
+few hundred specifically targeted sites (landing-site candidates, poles), and our real test pairs
+are ordinary mare/highland terrain with no reason to expect coverage. Photoclinometry (deriving
+pseudo-elevation from the same 2D shading the 2D matchers already see) would not add genuinely new
+information. Reported as a valid negative finding rather than attempted with unusable data.
+
+**Strategy 4 — dense whole-block correlation at coarse scale** (`_dense_coarse_align.py`): rather
+than sparse keypoints/patches (locally ambiguous), correlate an entire ~4km TMC sub-block as one
+template against the *full* candidate NAC frame at a common coarse GSD (22 m/px), sweeping rotation
+±15°, using the corrected (bug-free) geometry crop. With full shading preserved (no illumination
+normalization), the best peak was NCC=0.32 at 4°, a modest ~2.7σ outlier above the correlation
+surface's noise floor (mean 0.02, std 0.11) — but the targeted distinctive-feature check shows it
+landed in a bright, overexposed patch near the strip's edge whose texture bears no visual
+relationship to the TMC block. A statistically-detectable-but-visually-wrong peak — exactly the
+kind of numerically-plausible-but-wrong result this project's verification discipline exists to
+catch. Illumination-normalized variants (clahe/gradient/both) scored worse (0.17-0.19), confirming
+that removing large-scale shading (useful for local patch texture) actively hurts whole-block
+correlation, which depends on that same shading to encode crater-rim/shadow structure.
+
+**Conclusion**: four independent, methodologically distinct matching strategies (blind global,
+geometry-windowed template correlation, geometry-windowed LoFTR, geometry-windowed dense whole-block
+correlation) have now been tried on real Chandrayaan-2/NAC pairs and ruled out with the same
+rigorous diagnostic each time; a fifth (3D elevation-based descriptors) was ruled out at the data-
+availability stage. This is not a bug in the implementation — the pipeline is verified correct on
+synthetic pairs and on same-sensor pairs with genuinely distinctive terrain. The blocker is that
+**our real test pairs are all ordinary, repetitive mare/highland cratered plains**, which is close
+to a worst case for any appearance- or shape-based correspondence method at this GSD.
+
+**Honest recommendation for anyone continuing this**: don't invest further time tuning matchers on
+this class of terrain — the ambiguity is in the data, not the algorithm. Two directions that could
+actually work: (1) deliberately pick a real overlap region containing a large, non-repetitive
+landmark (a named crater, wrinkle ridge, rille, boulder field) instead of generic cratered plains —
+cheap to test, and directly checks whether the pipeline succeeds once the adversarial-terrain
+condition is removed; (2) domain-specific deep matcher training (fine-tune LoFTR or similar on
+synthetic TMC/NAC pairs generated by simulating one sensor's resolution/photometry from the other) —
+a real ML project, out of scope for the remaining time here.
+
 ## Notes / deviations
 - LoFTR (deep matcher) requires torch+kornia (~GBs). Wired behind a try/import with automatic fallback to classical if unavailable, so the system never breaks if the ML stack isn't installed. Documented in README with install instructions to enable it.

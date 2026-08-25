@@ -1,0 +1,342 @@
+[
+  {
+    "tmc": "tmc2_20260803_0049",
+    "nac": "M1394580290LE",
+    "ok": true,
+    "verified_points": 803,
+    "rejected_points": 44613,
+    "tmc_crop_extent_km": [
+      40.176,
+      7.44
+    ],
+    "nac_frame_extent_km": [
+      39.64828799815802,
+      5.190521507680914
+    ],
+    "extent_mismatch": true,
+    "detail": "cross-track: TMC crop 7.44km > NAC native swath 5.19km."
+  },
+  {
+    "tmc": "tmc2_20260803_0049",
+    "nac": "M1394580290RE",
+    "ok": true,
+    "verified_points": 784,
+    "rejected_points": 44632,
+    "tmc_crop_extent_km": [
+      40.176,
+      6.944
+    ],
+    "nac_frame_extent_km": [
+      39.64828799815802,
+      4.889493338230176
+    ],
+    "extent_mismatch": true,
+    "detail": "cross-track: TMC crop 6.94km > NAC native swath 4.89km."
+  },
+  {
+    "tmc": "tmc2_20260803_0049",
+    "nac": "M1394580363LE",
+    "ok": true,
+    "verified_points": 583,
+    "rejected_points": 44833,
+    "tmc_crop_extent_km": [
+      60.512,
+      3.968
+    ],
+    "nac_frame_extent_km": [
+      65.23397756244074,
+      4.861202878950181
+    ],
+    "extent_mismatch": false,
+    "detail": ""
+  },
+  {
+    "tmc": "tmc2_20260803_0049",
+    "nac": "M1394580363RE",
+    "ok": true,
+    "verified_points": 1252,
+    "rejected_points": 44164,
+    "tmc_crop_extent_km": [
+      65.472,
+      7.936
+    ],
+    "nac_frame_extent_km": [
+      65.23397756244054,
+      4.861202878948467
+    ],
+    "extent_mismatch": true,
+    "detail": "cross-track: TMC crop 7.94km > NAC native swath 4.86km."
+  },
+  {
+    "tmc": "tmc2_20260803_0049",
+    "nac": "M1382845798LE",
+    "ok": true,
+    "verified_points": 1754,
+    "rejected_points": 43662,
+    "tmc_crop_extent_km": [
+      83.824,
+      10.416
+    ],
+    "nac_frame_extent_km": [
+      83.18662813867185,
+      5.491792335387727
+    ],
+    "extent_mismatch": true,
+    "detail": "cross-track: TMC crop 10.42km > NAC native swath 5.49km."
+  },
+  {
+    "tmc": "tmc2_20260809_1606",
+    "nac": "M1410451203LE",
+    "ok": true,
+    "verified_points": 706,
+    "rejected_points": 43196,
+    "tmc_crop_extent_km": [
+      34.224,
+      8.928
+    ],
+    "nac_frame_extent_km": [
+      34.56595943816576,
+      6.375119346161768
+    ],
+    "extent_mismatch": true,
+    "detail": "cross-track: TMC crop 8.93km > NAC native swath 6.38km."
+  },
+  {
+    "tmc": "tmc2_20260809_1606",
+    "nac": "M1410451203RE",
+    "ok": true,
+    "verified_points": 691,
+    "rejected_points": 43211,
+    "tmc_crop_extent_km": [
+      34.72,
+      8.928
+    ],
+    "nac_frame_extent_km": [
+      34.527365750896706,
+      6.072246190326235
+    ],
+    "extent_mismatch": true,
+    "detail": "cross-track: TMC crop 8.93km > NAC native swath 6.07km."
+  },
+  {
+    "tmc": "tmc2_20260809_1606",
+    "nac": "M1416270448LE",
+    "ok": true,
+    "verified_points": 70,
+    "rejected_points": 43832,
+    "tmc_crop_extent_km": [
+      5.456,
+      2.48
+    ],
+    "nac_frame_extent_km": [
+      5.190521507682021,
+      6.072246190325375
+    ],
+    "extent_mismatch": false,
+    "detail": ""
+  },
+  {
+    "tmc": "tmc2_20260809_1606",
+    "nac": "M1385774154LE",
+    "ok": true,
+    "verified_points": 259,
+    "rejected_points": 43643,
+    "tmc_crop_extent_km": [
+      11.408,
+      5.456
+    ],
+    "nac_frame_extent_km": [
+      10.95424476234771,
+      6.396717779618674
+    ],
+    "extent_mismatch": false,
+    "detail": ""
+  },
+  {
+    "tmc": "tmc2_20260809_1606",
+    "nac": "M1385774154RE",
+    "ok": true,
+    "verified_points": 260,
+    "rejected_points": 43642,
+    "tmc_crop_extent_km": [
+      11.408,
+      5.456
+    ],
+    "nac_frame_extent_km": [
+      10.983584670775205,
+      6.396717779617817
+    ],
+    "extent_mismatch": false,
+    "detail": ""
+  },
+  {
+    "tmc": "tmc2_20260811_1856",
+    "nac": "M1444613697LE",
+    "ok": true,
+    "verified_points": 179,
+    "rejected_points": 6529,
+    "tmc_crop_extent_km": [
+      7.9409600000000005,
+      4.45904
+    ],
+    "nac_frame_extent_km": [
+      8.814659471012828,
+      6.698647053708154
+    ],
+    "extent_mismatch": false,
+    "detail": ""
+  },
+  {
+    "tmc": "tmc2_20260811_1856",
+    "nac": "M1444613697RE",
+    "ok": true,
+    "verified_points": 209,
+    "rejected_points": 6499,
+    "tmc_crop_extent_km": [
+      7.9409600000000005,
+      5.456
+    ],
+    "nac_frame_extent_km": [
+      8.814659471012886,
+      6.698647053708154
+    ],
+    "extent_mismatch": false,
+    "detail": ""
+  },
+  {
+    "tmc": "tmc2_20260811_1856",
+    "nac": "M1349544899LE",
+    "ok": true,
+    "verified_points": 180,
+    "rejected_points": 6528,
+    "tmc_crop_extent_km": [
+      8.928,
+      5.456
+    ],
+    "nac_frame_extent_km": [
+      7.907362360756686,
+      5.7694108910907
+    ],
+    "extent_mismatch": false,
+    "detail": ""
+  },
+  {
+    "tmc": "tmc2_20260811_1856",
+    "nac": "M1349544899RE",
+    "ok": true,
+    "verified_points": 176,
+    "rejected_points": 6532,
+    "tmc_crop_extent_km": [
+      8.432,
+      5.456
+    ],
+    "nac_frame_extent_km": [
+      7.907362360756794,
+      5.7694108910907
+    ],
+    "extent_mismatch": false,
+    "detail": ""
+  },
+  {
+    "tmc": "tmc2_20260811_1856",
+    "nac": "M1306094925LE",
+    "ok": true,
+    "verified_points": 602,
+    "rejected_points": 6106,
+    "tmc_crop_extent_km": [
+      23.808,
+      5.952
+    ],
+    "nac_frame_extent_km": [
+      23.700758624984324,
+      6.980959517868676
+    ],
+    "extent_mismatch": false,
+    "detail": ""
+  },
+  {
+    "tmc": "tmc2_20260812_0506",
+    "nac": "M1202635811LE",
+    "ok": true,
+    "verified_points": 138,
+    "rejected_points": 6132,
+    "tmc_crop_extent_km": [
+      10.64912,
+      2.48
+    ],
+    "nac_frame_extent_km": [
+      14.280978182665574,
+      3.6388020508980756
+    ],
+    "extent_mismatch": false,
+    "detail": ""
+  },
+  {
+    "tmc": "tmc2_20260812_0506",
+    "nac": "M1202635811RE",
+    "ok": true,
+    "verified_points": 138,
+    "rejected_points": 6132,
+    "tmc_crop_extent_km": [
+      10.64912,
+      2.48
+    ],
+    "nac_frame_extent_km": [
+      14.303495788108501,
+      3.3493235268545205
+    ],
+    "extent_mismatch": false,
+    "detail": ""
+  },
+  {
+    "tmc": "tmc2_20260812_0506",
+    "nac": "M1221463099LE",
+    "ok": true,
+    "verified_points": 27,
+    "rejected_points": 6243,
+    "tmc_crop_extent_km": [
+      1.488,
+      3.472
+    ],
+    "nac_frame_extent_km": [
+      1.2129340169659535,
+      4.256085049036034
+    ],
+    "extent_mismatch": true,
+    "detail": "along-track: TMC crop 1.49km > NAC native swath 1.21km."
+  },
+  {
+    "tmc": "tmc2_20260812_0506",
+    "nac": "M1221463099RE",
+    "ok": true,
+    "verified_points": 26,
+    "rejected_points": 6244,
+    "tmc_crop_extent_km": [
+      1.488,
+      2.976
+    ],
+    "nac_frame_extent_km": [
+      1.2129340169659535,
+      4.245269059380513
+    ],
+    "extent_mismatch": true,
+    "detail": "along-track: TMC crop 1.49km > NAC native swath 1.21km."
+  },
+  {
+    "tmc": "tmc2_20260812_0506",
+    "nac": "M1342582517LE",
+    "ok": true,
+    "verified_points": 162,
+    "rejected_points": 6108,
+    "tmc_crop_extent_km": [
+      8.928,
+      4.96
+    ],
+    "nac_frame_extent_km": [
+      8.237688503081383,
+      5.79326796415631
+    ],
+    "extent_mismatch": false,
+    "detail": ""
+  }
+]

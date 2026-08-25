@@ -1,0 +1,19 @@
+{
+  "nac_id": "M1382845798LE",
+  "overlaps_with": [
+    {
+      "tmc_id": "tmc2_20260803_0049",
+      "verified_points": 1754,
+      "extent_mismatch": true,
+      "tmc_crop_extent_km": [
+        83.824,
+        10.416
+      ],
+      "nac_frame_extent_km": [
+        83.18662813867185,
+        5.491792335387727
+      ],
+      "recommended_for_testing": false
+    }
+  ]
+}
