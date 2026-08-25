@@ -117,8 +117,21 @@ def load_image(path: str) -> LoadedImage:
 
 
 def to_uint8(gray: np.ndarray) -> np.ndarray:
-    """Percentile-stretch any bit depth into a display/matcher-friendly uint8 image."""
-    lo, hi = np.percentile(gray, [1, 99])
+    """Percentile-stretch any bit depth into a display/matcher-friendly uint8 image.
+
+    Real Chandrayaan-2 TMC-2 strips can be 200,000+ lines — np.percentile on the
+    full array forces an internal sort/copy that has actually OOM'd on a real
+    244,000-line product (~7GB for the float64 copy alone). Percentiles are
+    estimated from a bounded random subsample instead (statistically sufficient
+    for a 1st/99th percentile stretch) while the stretch itself is still applied
+    to the full-resolution array — no loss of image detail, just a cheaper way
+    to pick the two stretch bounds."""
+    sample = gray
+    if gray.size > 2_000_000:
+        rng = np.random.default_rng(0)
+        idx = rng.integers(0, gray.size, size=2_000_000)
+        sample = gray.ravel()[idx]
+    lo, hi = np.percentile(sample, [1, 99])
     if hi <= lo:
         lo, hi = float(gray.min()), float(gray.max() or 1.0)
     stretched = np.clip((gray - lo) / max(hi - lo, 1e-6), 0, 1)

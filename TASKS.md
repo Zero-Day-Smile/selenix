@@ -247,5 +247,47 @@ infrastructure (footprint parsing + ODE spatial query) is real, working, and reu
 who picks this up next; producing a clean cross-sensor match from it is the concrete next step, not
 a redesign.
 
+## Real cross-sensor matching — broad sweep result (this session, part 3)
+
+Expanded from 1 candidate/image to 5 confirmed-real-overlap candidates per Chandrayaan-2 image
+(20 new real NAC downloads via the same KML-footprint-verification method — every candidate here
+is confirmed to genuinely share ground with its Chandrayaan-2 image, not just a coarse bbox match).
+Ran classical SIFT matching against all 24 real pairs (4 original + 20 new):
+
+- **22 of 24**: 0-3 raw SIFT matches — nowhere near the 4 needed for even a degenerate homography.
+- **2 of 24** (`M1349544899LE`/`RE` — the Left/Right halves of the same acquisition): a homography
+  was found (8-9 matches, 50-67% "inlier ratio"), but with only 8-9 total points this is
+  statistically meaningless — RANSAC trivially finds a high inlier fraction among that few points
+  by chance. Not investigated further as a real candidate; the sample size alone disqualifies it.
+
+**This is now a well-established negative result, not bad luck on crop selection**: across 24
+independently real, geographically-confirmed overlapping pairs spanning 4 different real locations
+on the Moon, classical SIFT essentially never finds enough shared feature correspondence between
+Chandrayaan-2 TMC-2 (calibrated radiance) and LRO NAC (raw instrument DN) to establish a trustworthy
+match. Also tried LoFTR (deep matcher) on the two strongest-overlap pairs specifically — same
+failure pattern (see below), so this isn't a classical-matcher-specific limitation either.
+
+Two real bugs found and fixed while running this sweep (both real, both affect the actual pipeline,
+not just this diagnostic script):
+- `ingestion.to_uint8()` used `np.percentile` on the full array, which triggers an internal
+  sort/copy — OOM'd for real on a 244,000-line Chandrayaan-2 image (~7.3GB for the float64 copy
+  alone). Fixed by estimating percentiles from a bounded random subsample (statistically
+  sufficient for a 1st/99th stretch) while still applying the stretch to the full-resolution array.
+- `matching.match_deep_loftr()` had no size cap — LoFTR's coarse-matching stage computes a dense
+  similarity matrix whose memory cost scales with the *product* of both images' patch counts, and
+  it tried to allocate 169GB on a real ~8000x1700 crop. Fixed with a `max_side=840` resize (LoFTR's
+  typical usage size) before inference, with keypoints rescaled back to the caller's original
+  coordinate space — transparent to callers, verified no regression on normal-sized pairs.
+
+**What this means for the project**: the pipeline itself is proven solid (self-pair validation at
+98-99.76% on 2 different real sensors, correct rejection of every spurious match via visual
+verification rather than trusting metrics blindly, 24 real candidates now catalogued and reusable).
+What's not yet solved is real cross-sensor correspondence between these two specific instruments at
+the resolutions/preprocessing tried so far. Concrete next directions for whoever continues this:
+(a) test whether TMC-2's *raw* (uncalibrated) product type matches NAC's raw DN better than the
+calibrated product type used throughout this session — a calibrated-vs-raw radiometric mismatch is
+the leading hypothesis and hasn't been tested; (b) try much smaller, more textured sub-crops within
+each confirmed-overlap region rather than large crops that may dilute the actually-overlapping area.
+
 ## Notes / deviations
 - LoFTR (deep matcher) requires torch+kornia (~GBs). Wired behind a try/import with automatic fallback to classical if unavailable, so the system never breaks if the ML stack isn't installed. Documented in README with install instructions to enable it.

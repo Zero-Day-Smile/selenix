@@ -122,26 +122,41 @@ def _try_load_loftr():
     return _loftr_available
 
 
-def match_deep_loftr(src_u8: np.ndarray, ref_u8: np.ndarray, conf_thresh: float = 0.5) -> MatchResult | None:
+def match_deep_loftr(src_u8: np.ndarray, ref_u8: np.ndarray, conf_thresh: float = 0.5,
+                      max_side: int = 840) -> MatchResult | None:
     """LoFTR outdoor-ds matcher via kornia. Returns None (caller falls back to
     classical) if torch/kornia are not installed — kept optional so the
-    pipeline never breaks in an environment without the ML stack."""
+    pipeline never breaks in an environment without the ML stack.
+
+    LoFTR's coarse-matching stage computes a dense similarity matrix between
+    every 1/8-resolution patch of image A and every patch of image B — its
+    memory cost scales with the *product* of both images' patch counts, not
+    their sum. Confirmed by hitting a real 169GB allocation attempt on an
+    ~8000x1700 real crop. `max_side` (840px, LoFTR's typical usage size)
+    caps each image's longer side before inference; keypoints are rescaled
+    back to the caller's original coordinate space afterward, so this is
+    transparent to callers — MatchResult is always in input-image pixels."""
     if not _try_load_loftr():
         return None
     import torch
 
     def prep(img):
-        t = torch.from_numpy(img).float()[None, None] / 255.0
-        return t
+        h, w = img.shape[:2]
+        scale = min(1.0, max_side / max(h, w))
+        resized = cv2.resize(img, (max(1, int(w * scale)), max(1, int(h * scale)))) if scale < 1.0 else img
+        t = torch.from_numpy(resized).float()[None, None] / 255.0
+        return t, scale
 
     with torch.no_grad():
-        batch = {"image0": prep(src_u8), "image1": prep(ref_u8)}
+        src_t, src_scale = prep(src_u8)
+        ref_t, ref_scale = prep(ref_u8)
+        batch = {"image0": src_t, "image1": ref_t}
         out = _loftr_model(batch)
 
     conf = out["confidence"].cpu().numpy()
     keep = conf >= conf_thresh
-    src_pts = out["keypoints0"].cpu().numpy()[keep]
-    ref_pts = out["keypoints1"].cpu().numpy()[keep]
+    src_pts = out["keypoints0"].cpu().numpy()[keep] / src_scale
+    ref_pts = out["keypoints1"].cpu().numpy()[keep] / ref_scale
     confidences = conf[keep].astype(np.float32)
 
     return MatchResult(src_pts.astype(np.float32), ref_pts.astype(np.float32), confidences,

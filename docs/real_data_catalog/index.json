@@ -1,0 +1,59 @@
+{
+  "_note": "Curated to the 4 strongest real Chandrayaan-2 <-> LRO NAC candidate pairs (by confirmed real geographic overlap, not just a coarse bounding-box match). Plus one separate self-pair validation reference. Not a train/test split — nothing in this pipeline trains on data.",
+
+  "candidate_pairs": [
+    {
+      "chandrayaan2": {"id": "tmc2_20260803_0049", "path": "backend/data/real/chandrayaan2/tmc2_20260803_0049/tmc2_20260803_0049.xml",
+        "preview": "backend/data/real/chandrayaan2/tmc2_20260803_0049/tmc2_20260803_0049_preview.png",
+        "dims": [110665, 4000], "dtype": "uint16", "footprint_deg": {"lon": [276.22, 277.46], "lat": [-31.69, -13.59]}},
+      "lro_nac": {"id": "M1394580290LE", "path": "backend/data/real/lro_nac/M1394580290LE/M1394580290LE.IMG",
+        "preview": "backend/data/real/lro_nac/M1394580290LE/M1394580290LE_preview.png",
+        "dims": [20480, 2532], "dtype": "uint8", "texture_std": 38.18, "footprint_deg": {"lon": [276.73, 277.04], "lat": [-24.98, -23.66]}},
+      "overlap_grid_points": 1302,
+      "note": "strongest confirmed real overlap found; matching attempt in progress"
+    },
+    {
+      "chandrayaan2": {"id": "tmc2_20260809_1606", "path": "backend/data/real/chandrayaan2/tmc2_20260809_1606/tmc2_20260809_1606.xml",
+        "preview": "backend/data/real/chandrayaan2/tmc2_20260809_1606/tmc2_20260809_1606_preview.png",
+        "dims": [106962, 4000], "dtype": "uint16", "footprint_deg": {"lon": [186.99, 188.86], "lat": [-41.14, -23.59]}},
+      "lro_nac": {"id": "M1410451203LE", "path": "backend/data/real/lro_nac/M1410451203LE/M1410451203LE.IMG",
+        "preview": "backend/data/real/lro_nac/M1410451203LE/M1410451203LE_preview.png",
+        "dims": [16384, 2532], "dtype": "uint8", "texture_std": 18.75, "footprint_deg": {"lon": [187.57, 187.92], "lat": [-38.40, -37.26]}},
+      "overlap_grid_points": 1087,
+      "note": "second-strongest confirmed real overlap; not yet attempted"
+    },
+    {
+      "chandrayaan2": {"id": "tmc2_20260811_1856", "path": "backend/data/real/chandrayaan2/tmc2_20260811_1856/tmc2_20260811_1856.xml",
+        "preview": "backend/data/real/chandrayaan2/tmc2_20260811_1856/tmc2_20260811_1856_preview.png",
+        "dims": [16202, 4000], "dtype": "uint16", "footprint_deg": {"lon": [162.34, 163.27], "lat": [18.94, 21.59]}},
+      "lro_nac": {"id": "M1444613697LE", "path": "backend/data/real/lro_nac/M1444613697LE/M1444613697LE.IMG",
+        "preview": "backend/data/real/lro_nac/M1444613697LE/M1444613697LE_preview.png",
+        "dims": [7168, 5064], "dtype": "uint8", "texture_std": 15.79, "footprint_deg": {"lon": [162.30, 162.54], "lat": [18.92, 19.23]}},
+      "overlap_grid_points": 180,
+      "note": "not yet attempted"
+    },
+    {
+      "chandrayaan2": {"id": "tmc2_20260812_0506", "path": "backend/data/real/chandrayaan2/tmc2_20260812_0506/tmc2_20260812_0506.xml",
+        "preview": "backend/data/real/chandrayaan2/tmc2_20260812_0506/tmc2_20260812_0506_preview.png",
+        "dims": [15148, 4000], "dtype": "uint16", "footprint_deg": {"lon": [154.10, 155.19], "lat": [-40.85, -38.34]}},
+      "lro_nac": {"id": "M1202635811LE", "path": "backend/data/real/lro_nac/M1202635811LE/M1202635811LE.IMG",
+        "preview": "backend/data/real/lro_nac/M1202635811LE/M1202635811LE_preview.png",
+        "dims": [12288, 2532], "dtype": "uint8", "texture_std": 13.46, "footprint_deg": {"lon": [154.26, 154.41], "lat": [-40.94, -40.47]}},
+      "overlap_grid_points": 145,
+      "note": "not yet attempted"
+    }
+  ],
+
+  "self_pair_validation": {
+    "purpose": "proves the pipeline handles real lunar pixel statistics correctly — NOT a cross-sensor match. Both sides come from the same real acquisition; source is a synthetically rotated/relit/noised copy of the reference.",
+    "chandrayaan2": {"path": "backend/data/real/chandrayaan2/self_pair/", "result": {"matcher": "sift", "inlier_ratio": 0.9976, "rmse_px": [0.2653, 0.0439]}},
+    "lro_nac": {"id": "M1100131076RE", "path": "backend/data/real/lro_nac/M1100131076RE/M1100131076RE.IMG",
+      "preview": "backend/data/real/lro_nac/M1100131076RE/M1100131076RE_preview.png", "self_pair": "backend/data/real/lro_nac/self_pair/",
+      "note": "validated the PDS3 reader; found+fixed the signed/unsigned 8-bit DN bug here",
+      "result": {"sift": {"inlier_ratio": 0.982, "rmse_px": [0.7631, 0.1968]}, "loftr": {"inlier_ratio": 0.9205, "rmse_px": [1.4237, 1.3201]}}}
+  },
+
+  "removed_for_curation": "6 weaker Chandrayaan-2 footprints and 10 weaker/unresolved NAC candidates were downloaded, tested, and then deleted to keep this catalog to the strongest 4 pairs — see TASKS.md for their full history (2 spurious-match findings, false-positive bbox overlaps, thin-overlap candidates) if that detail is needed again.",
+
+  "next_step": "Run the actual pipeline (matching -> geometric verification) on the 3 untried pairs, same method as tmc2_20260803_0049/M1394580290LE (in progress)."
+}
