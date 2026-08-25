@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Generated/runtime data — never commit real mission imagery, run outputs, or caches
+backend/data/real/
+backend/data/samples/
+backend/outputs/
+*.sqlite3
+
+# Env
+.env

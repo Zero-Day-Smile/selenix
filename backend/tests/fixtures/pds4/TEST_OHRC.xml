@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Product_Observational
+  xmlns="http://pds.nasa.gov/pds4/pds/v1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <Identification_Area>
+    <logical_identifier>urn:test:fixture:ch2_ohrc_test</logical_identifier>
+    <version_id>1.0</version_id>
+    <title>Test fixture — not real Chandrayaan-2 data</title>
+    <information_model_version>1.19.0.0</information_model_version>
+    <product_class>Product_Observational</product_class>
+  </Identification_Area>
+  <Observation_Area>
+    <Time_Coordinates>
+      <start_date_time>2024-01-01T00:00:00Z</start_date_time>
+      <stop_date_time>2024-01-01T00:00:01Z</stop_date_time>
+    </Time_Coordinates>
+    <Investigation_Area>
+      <name>Test</name>
+      <type>Mission</type>
+    </Investigation_Area>
+    <Observing_System>
+      <Observing_System_Component>
+        <name>Test</name>
+        <type>Spacecraft</type>
+      </Observing_System_Component>
+    </Observing_System>
+    <Target_Identification>
+      <name>Moon</name>
+      <type>Satellite</type>
+    </Target_Identification>
+  </Observation_Area>
+  <File_Area_Observational>
+    <File>
+      <file_name>TEST_OHRC.img</file_name>
+    </File>
+    <Array_2D_Image>
+      <local_identifier>Array_2D_Image</local_identifier>
+      <offset unit="byte">0</offset>
+      <axes>2</axes>
+      <axis_index_order>Last Index Fastest</axis_index_order>
+      <Element_Array>
+        <data_type>UnsignedByte</data_type>
+      </Element_Array>
+      <Axis_Array>
+        <axis_name>Line</axis_name>
+        <elements>40</elements>
+        <sequence_number>1</sequence_number>
+      </Axis_Array>
+      <Axis_Array>
+        <axis_name>Sample</axis_name>
+        <elements>56</elements>
+        <sequence_number>2</sequence_number>
+      </Axis_Array>
+    </Array_2D_Image>
+  </File_Area_Observational>
+</Product_Observational>
