@@ -12,8 +12,40 @@ import time
 
 import cv2
 import numpy as np
+from skimage.metrics import structural_similarity
 
 from . import ingestion, preprocessing, matching, geometry, registration, refinement, metrics, memory
+
+
+def _save_ssim_heatmap(ref_u8: np.ndarray, warped_u8: np.ndarray, H: np.ndarray,
+                        src_shape: tuple, out_path: str) -> dict:
+    """Structural-similarity dissimilarity map, on a FIXED [0,1] scale (SSIM
+    is bounded by definition — no per-image auto-scaling needed or wanted,
+    since auto-scaling can make a bad alignment's heatmap look deceptively
+    similar to a good one's). Saved as a 2-channel-meaningful RGBA PNG: the
+    grayscale value encodes dissimilarity (0=identical, 255=max dissimilar),
+    the alpha channel encodes warp validity (0 = outside the warped source's
+    footprint — no real data there, not a residual). That validity mask is
+    what produces the sharp polygonal/diagonal artifact in the old raw-diff
+    heatmap: cv2.warpPerspective fills outside the valid region with 0,
+    which reads as maximum difference against real reference content at
+    that boundary. This function keeps that boundary but labels it via alpha
+    instead of letting it masquerade as real residual structure."""
+    ssim_val, ssim_map = structural_similarity(ref_u8, warped_u8, full=True, data_range=255)
+    dissimilarity = np.clip((1.0 - ssim_map) / 2.0, 0.0, 1.0)  # SSIM in [-1,1] -> [0,1]
+
+    ones = np.ones(src_shape[:2], dtype=np.uint8) * 255
+    valid_mask = cv2.warpPerspective(ones, H, (ref_u8.shape[1], ref_u8.shape[0]))
+
+    gray = (dissimilarity * 255).astype(np.uint8)
+    rgba = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGRA)
+    rgba[:, :, 3] = valid_mask
+    cv2.imwrite(out_path, rgba)
+
+    valid_frac = valid_mask.astype(bool)
+    mean_ssim_in_valid = float(ssim_map[valid_frac].mean()) if valid_frac.any() else float("nan")
+    return {"mean_ssim": ssim_val, "mean_ssim_valid_region": mean_ssim_in_valid,
+            "valid_pixel_fraction": float(valid_frac.mean())}
 
 
 def _sensor_from_path(path: str) -> str:
@@ -140,6 +172,16 @@ def run_registration(src_path: str, ref_path: str, out_dir: str,
     warp_piece = registration.warp_piecewise(src_proc, refined_src, inlier_ref, ref_proc.shape)
     warp_tps_res = registration.warp_tps(src_proc, refined_src, inlier_ref, ref_proc.shape)
 
+    rotation_consistency = metrics.pairwise_rotation_consistency(match_res.src_pts, match_res.ref_pts)
+    validation = metrics.assess_validation(
+        total_matches=int(len(match_res.src_pts)), inlier_count=int(geo.inlier_mask.sum()),
+        inlier_ratio=float(geo.inlier_mask.mean()) if len(geo.inlier_mask) else 0.0,
+        rmse_post_refinement=metrics.reprojection_rmse(refined_src, inlier_ref, H_final),
+        rotation_std_deg=rotation_consistency["std_deg"])
+
+    ssim_path = os.path.join(out_dir, "ssim_heatmap.png")
+    ssim_stats = _save_ssim_heatmap(ref_proc, warp_global.warped, H_final, src_proc.shape, ssim_path)
+
     # Piecewise/TPS warps are computed and saved for visual + qualitative
     # comparison (registered_piecewise.png / registered_tps.png); a true
     # forward-projected piecewise RMSE would require inverse-mapping per
@@ -166,15 +208,25 @@ def run_registration(src_path: str, ref_path: str, out_dir: str,
     n_total = int(len(match_res.src_pts))
     inlier_ratio = float(n_inliers / n_total) if n_total else 0.0
 
+    inlier_indices = np.where(geo.inlier_mask)[0]
+    pos_in_inliers = {int(idx): k for k, idx in enumerate(inlier_indices)}
+
     match_points = []
     for i in range(n_total):
-        match_points.append({
+        entry = {
             "src_x": float(match_res.src_pts[i][0]), "src_y": float(match_res.src_pts[i][1]),
             "ref_x": float(match_res.ref_pts[i][0]), "ref_y": float(match_res.ref_pts[i][1]),
             "confidence": float(match_res.confidences[i]) if i < len(match_res.confidences) else None,
             "inlier": bool(geo.inlier_mask[i]),
             "uniform_selected": bool(selected_mask[i]),
-        })
+            "refined_src_x": None, "refined_src_y": None, "refinement_offset_px": None,
+        }
+        if i in pos_in_inliers:
+            k = pos_in_inliers[i]
+            rx, ry = float(refined_src[k][0]), float(refined_src[k][1])
+            entry["refined_src_x"], entry["refined_src_y"] = rx, ry
+            entry["refinement_offset_px"] = float(np.hypot(rx - entry["src_x"], ry - entry["src_y"]))
+        match_points.append(entry)
 
     with open(os.path.join(out_dir, "match_points.json"), "w") as f:
         json.dump(match_points, f, indent=2)
@@ -215,7 +267,11 @@ def run_registration(src_path: str, ref_path: str, out_dir: str,
             "global_homography": registered_path,
             "piecewise_affine": registered_piecewise_path,
             "thin_plate_spline": registered_tps_path,
+            "ssim_heatmap": ssim_path,
         },
+        "rotation_consistency": rotation_consistency,
+        "ssim": ssim_stats,
+        "validation": validation,
         "elapsed_seconds": round(elapsed, 3),
         "src_path": src_path,
         "ref_path": ref_path,
