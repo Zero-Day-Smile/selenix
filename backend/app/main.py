@@ -8,8 +8,10 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from backend.pipeline.run_pipeline import run_registration
-from backend.pipeline import memory, synthetic
+from backend.pipeline.run_pipeline import run_registration, run_registration_manual_seed
+from backend.pipeline import memory, synthetic, ingestion, preprocessing
+import json as _json
+import cv2 as _cv2
 
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 UPLOAD_DIR = os.path.join(BASE_DIR, "outputs", "uploads")
@@ -85,6 +87,72 @@ async def api_run(
 
     result = run_registration(src_path, ref_path, out_dir, matcher=matcher,
                                illum_mode=illum_mode, sensor_type=sensor_type)
+    result["run_dir_id"] = run_id
+    return result
+
+
+@app.post("/api/prepare_manual")
+async def api_prepare_manual(
+    source: list[UploadFile] = File(...),
+    reference: list[UploadFile] = File(...),
+    illum_mode: str = Form("gradient"),
+):
+    """Ingests + illumination-normalizes a pair without matching anything, and
+    returns the processed images (as PNGs) plus a `prep_id`. The frontend
+    displays these for a human to click corresponding points on; the seed
+    points are then submitted (in these exact processed-image pixel
+    coordinates) to /api/run_manual."""
+    src_path = _save_upload_group(source)
+    ref_path = _save_upload_group(reference)
+
+    src_img = ingestion.load_image(src_path)
+    ref_img = ingestion.load_image(ref_path)
+    src_proc = preprocessing.illumination_normalize(ingestion.to_uint8(src_img.gray), illum_mode)
+    ref_proc = preprocessing.illumination_normalize(ingestion.to_uint8(ref_img.gray), illum_mode)
+
+    prep_id = uuid.uuid4().hex[:12]
+    prep_dir = os.path.join(RUNS_DIR, f"prep_{prep_id}")
+    os.makedirs(prep_dir, exist_ok=True)
+    _cv2.imwrite(os.path.join(prep_dir, "src_processed.png"), src_proc)
+    _cv2.imwrite(os.path.join(prep_dir, "ref_processed.png"), ref_proc)
+    manifest = {"src_path": src_path, "ref_path": ref_path, "illum_mode": illum_mode}
+    with open(os.path.join(prep_dir, "manifest.json"), "w") as f:
+        _json.dump(manifest, f)
+
+    return {
+        "prep_id": prep_id,
+        "src_shape": list(src_proc.shape),
+        "ref_shape": list(ref_proc.shape),
+        "src_url": f"/api/runs/prep_{prep_id}/src_processed.png",
+        "ref_url": f"/api/runs/prep_{prep_id}/ref_processed.png",
+    }
+
+
+@app.post("/api/run_manual")
+async def api_run_manual(
+    prep_id: str = Form(...),
+    seed_points: str = Form(...),
+    sensor_type: str = Form("ohrc"),
+):
+    """`seed_points`: JSON string, list of {"src": [x, y], "ref": [x, y]} in
+    the processed-image coordinate space returned by /api/prepare_manual."""
+    prep_dir = os.path.join(RUNS_DIR, f"prep_{prep_id}")
+    manifest_path = os.path.join(prep_dir, "manifest.json")
+    if not os.path.exists(manifest_path):
+        raise HTTPException(404, f"unknown prep_id {prep_id} (did you call /api/prepare_manual first?)")
+    with open(manifest_path) as f:
+        manifest = _json.load(f)
+
+    try:
+        points = _json.loads(seed_points)
+    except _json.JSONDecodeError:
+        raise HTTPException(400, "seed_points must be a JSON string")
+
+    run_id = uuid.uuid4().hex[:12]
+    out_dir = os.path.join(RUNS_DIR, run_id)
+    result = run_registration_manual_seed(
+        manifest["src_path"], manifest["ref_path"], out_dir, points,
+        illum_mode=manifest["illum_mode"], sensor_type=sensor_type)
     result["run_dir_id"] = run_id
     return result
 

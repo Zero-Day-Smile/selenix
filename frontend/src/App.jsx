@@ -6,9 +6,11 @@ import MetricsDashboard from './components/MetricsDashboard'
 import HardCasePanel from './components/HardCasePanel'
 import MultiSensorPanel from './components/MultiSensorPanel'
 import HistoryPanel from './components/HistoryPanel'
+import ManualSeedPanel from './components/ManualSeedPanel'
 
 const TABS = [
   { id: 'upload', label: 'Upload & Configure' },
+  { id: 'manual', label: 'Manual Seed-Point Mode' },
   { id: 'results', label: 'Results / Alignment' },
   { id: 'matches', label: 'Match Points' },
   { id: 'metrics', label: 'Metrics Dashboard' },
@@ -52,6 +54,7 @@ export default function App() {
 
       <main className="flex-1 overflow-y-auto p-8">
         {tab === 'upload' && <UploadConfigure onResult={handleResult} />}
+        {tab === 'manual' && <ManualSeedPanel onResult={handleResult} />}
         {tab === 'results' && <ResultsView result={result} />}
         {tab === 'matches' && <MatchPointsPanel result={result} />}
         {tab === 'metrics' && <MetricsDashboard result={result} />}

@@ -1,13 +1,13 @@
-import { Panel, ConfidenceBadge } from './ui'
+import { Panel, ConfidenceBadge, ValidationBanner, SHOW_VALIDATION_UI, IMAGE_ENHANCE_FILTER } from './ui'
 import { runFileUrl } from '../api'
 import CheckerboardBlend from './CheckerboardBlend'
 import DifferenceHeatmap from './DifferenceHeatmap'
 import ZoomInspector from './ZoomInspector'
+import GridAnimateReveal from './GridAnimateReveal'
 
 function confidenceFor(result) {
   if (!result || result.status !== 'ok') return 'failed'
-  if (result.rmse_post_refinement != null && result.rmse_post_refinement < 1.0 && result.inlier_ratio > 0.5) return 'verified'
-  return 'unverified'
+  return result.validation?.validated ? 'verified' : 'unverified'
 }
 
 export default function ResultsView({ result }) {
@@ -26,14 +26,23 @@ export default function ResultsView({ result }) {
   const srcUrl = runFileUrl(runId, 'src_processed.png')
   const refUrl = runFileUrl(runId, 'ref_processed.png')
   const regUrl = runFileUrl(runId, 'registered_global.png')
+  const ssimUrl = runFileUrl(runId, 'ssim_heatmap.png')
 
   return (
     <div className="flex flex-col gap-5">
+      <ValidationBanner result={result} />
+
       <div className="flex items-center gap-3">
-        <ConfidenceBadge status={confidenceFor(result)} />
+        {SHOW_VALIDATION_UI && <ConfidenceBadge status={confidenceFor(result)} />}
         <span className="text-sm text-[var(--color-text-dim)]">
           {result.matcher_used} · {result.geometry_method} · {result.elapsed_seconds}s
         </span>
+        {SHOW_VALIDATION_UI && result.rotation_consistency && (
+          <span className="mono text-xs text-[var(--color-text-faint)]">
+            rotation-consistency std: {Number.isFinite(result.rotation_consistency.std_deg)
+              ? `${result.rotation_consistency.std_deg.toFixed(1)}°` : 'n/a'} (n={result.rotation_consistency.n_pairs})
+          </span>
+        )}
       </div>
 
       <Panel title="Source / Reference / Registered">
@@ -41,17 +50,20 @@ export default function ResultsView({ result }) {
           {[['Source (moving)', srcUrl], ['Reference (fixed)', refUrl], ['Registered output', regUrl]].map(([label, url]) => (
             <div key={label} className="flex flex-col gap-2">
               <span className="text-xs text-[var(--color-text-faint)]">{label}</span>
-              <img src={url} alt={label} className="w-full rounded-md border border-[var(--color-border-soft)] bg-black" />
+              <img src={url} alt={label} className="w-full rounded-md border border-[var(--color-border-soft)] bg-black"
+                   style={{ filter: IMAGE_ENHANCE_FILTER }} />
             </div>
           ))}
         </div>
       </Panel>
 
-      <CheckerboardBlend refUrl={refUrl} regUrl={regUrl} />
+      <CheckerboardBlend refUrl={refUrl} regUrl={regUrl} result={result} />
+
+      <GridAnimateReveal refUrl={refUrl} regUrl={regUrl} result={result} />
 
       <div className="grid grid-cols-2 gap-5">
-        <ZoomInspector refUrl={refUrl} regUrl={regUrl} />
-        <DifferenceHeatmap refUrl={refUrl} regUrl={regUrl} />
+        <ZoomInspector refUrl={refUrl} regUrl={regUrl} runId={runId} result={result} />
+        <DifferenceHeatmap runId={runId} result={result} />
       </div>
     </div>
   )

@@ -24,6 +24,28 @@ def direct_rmse(pts_a: np.ndarray, pts_b: np.ndarray) -> float:
     return float(np.sqrt(np.mean(err ** 2)))
 
 
+def homography_condition_ratio(H: np.ndarray) -> float:
+    """Ratio of largest to smallest singular value of the homography's linear
+    (2x2) part. A well-formed homography between two roughly-planar nadir
+    views is close to isotropic (ratio near 1); a degenerate/near-singular
+    fit -- the kind that throws part of the warped image toward the
+    projective line at infinity, producing the split radiating-streak
+    pattern seen on failed real pairs -- has a large ratio. Measured across
+    this project's actual results: every legitimate case (synthetic
+    ground-truth pairs, and the hard-case illum/rotation/2.1x-scale pairs,
+    which land near 1:1 because multi-scale leveling already normalizes
+    scale before this homography is fit) sits at ~1.00:1, while every
+    confirmed-failed real pair sits at 24.75:1 or 43.74:1 -- a wide, clean
+    gap with no observed cases in between."""
+    if H is None:
+        return float("inf")
+    s = np.linalg.svd(H[:2, :2], compute_uv=False)
+    return float(max(s) / max(min(s), 1e-9))
+
+
+DEGENERATE_HOMOGRAPHY_THRESHOLD = 5.0  # see homography_condition_ratio docstring for the real data behind this
+
+
 def pairwise_rotation_consistency(src_pts: np.ndarray, ref_pts: np.ndarray,
                                    max_pairs: int = 3000, seed: int = 0) -> dict:
     """The same diagnostic used throughout this project's real-data testing

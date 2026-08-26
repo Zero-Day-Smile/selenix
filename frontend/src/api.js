@@ -44,3 +44,23 @@ export async function getMatchPoints(runId) {
   const res = await fetch(runFileUrl(runId, 'match_points.json'))
   return res.json()
 }
+
+export async function prepareManual({ source, reference, illumMode }) {
+  const fd = new FormData()
+  for (const f of source) fd.append('source', f)
+  for (const f of reference) fd.append('reference', f)
+  fd.append('illum_mode', illumMode)
+  const res = await fetch(`${BASE}/prepare_manual`, { method: 'POST', body: fd })
+  if (!res.ok) throw new Error(`Prepare failed (${res.status})`)
+  return res.json()
+}
+
+export async function runManual({ prepId, seedPoints, sensorType }) {
+  const fd = new FormData()
+  fd.append('prep_id', prepId)
+  fd.append('seed_points', JSON.stringify(seedPoints))
+  fd.append('sensor_type', sensorType)
+  const res = await fetch(`${BASE}/run_manual`, { method: 'POST', body: fd })
+  if (!res.ok) throw new Error(`Manual run failed (${res.status})`)
+  return res.json()
+}
