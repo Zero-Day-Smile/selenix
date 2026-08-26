@@ -145,11 +145,11 @@ def match_deep_loftr(src_u8: np.ndarray, ref_u8: np.ndarray, conf_thresh: float 
         scale = min(1.0, max_side / max(h, w))
         resized = cv2.resize(img, (max(1, int(w * scale)), max(1, int(h * scale)))) if scale < 1.0 else img
         t = torch.from_numpy(resized).float()[None, None] / 255.0
-        return t, scale
+        return t, scale, resized.shape[:2]
 
     with torch.no_grad():
-        src_t, src_scale = prep(src_u8)
-        ref_t, ref_scale = prep(ref_u8)
+        src_t, src_scale, src_resized_shape = prep(src_u8)
+        ref_t, ref_scale, ref_resized_shape = prep(ref_u8)
         batch = {"image0": src_t, "image1": ref_t}
         out = _loftr_model(batch)
 
@@ -159,8 +159,19 @@ def match_deep_loftr(src_u8: np.ndarray, ref_u8: np.ndarray, conf_thresh: float 
     ref_pts = out["keypoints1"].cpu().numpy()[keep] / ref_scale
     confidences = conf[keep].astype(np.float32)
 
+    # LoFTR has no discrete keypoint-detection stage (unlike SIFT/ORB) -- it
+    # runs dense matching over every 1/8-resolution patch of the resized
+    # image via its stride-8 CNN backbone. That patch grid is the real,
+    # honest analogue of "keypoints considered" for this matcher: it's what
+    # the match candidates were actually drawn from, just not a filtered
+    # discrete set the way SIFT keypoints are. Reporting 0 here (the old
+    # behavior) was flatly wrong -- 36+ matches cannot come from 0 considered
+    # locations on either side.
+    n_kp_src = (src_resized_shape[0] // 8) * (src_resized_shape[1] // 8)
+    n_kp_ref = (ref_resized_shape[0] // 8) * (ref_resized_shape[1] // 8)
+
     return MatchResult(src_pts.astype(np.float32), ref_pts.astype(np.float32), confidences,
-                        "deep_loftr")
+                        "deep_loftr", n_kp_src, n_kp_ref)
 
 
 def match_auto(src_u8: np.ndarray, ref_u8: np.ndarray, inlier_ratio_fn,

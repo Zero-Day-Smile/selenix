@@ -1,37 +1,45 @@
 @import "tailwindcss";
 
-@theme {
-  --font-sans: 'Inter', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
-
-  --color-bg: #0B0D12;
-  --color-panel: #12151C;
-  --color-panel-raised: #171B24;
-  --color-border: #232838;
-  --color-border-soft: #1B202B;
-  --color-text: #E7E9EE;
-  --color-text-dim: #8A90A2;
-  --color-text-faint: #565D70;
-  --color-cyan: #4FD1E8;
-  --color-cyan-dim: #2C6B78;
-  --color-amber: #E8A33D;
-  --color-amber-dim: #7A5A24;
-  --color-green: #4FE0A0;
-  --color-red: #E85D5D;
+/* Add to your global CSS */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-html, body, #root {
-  height: 100%;
+.animate-fade-in-up {
+  animation: fadeInUp 1s ease-out forwards;
 }
 
-body {
-  background: var(--color-bg);
-  color: var(--color-text);
-  font-family: var(--font-sans);
+.animation-delay-200 {
+  animation-delay: 200ms;
+  opacity: 0;
 }
 
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track { background: var(--color-bg); }
-::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 6px; }
+/* Smooth scroll behavior */
+html {
+  scroll-behavior: smooth;
+}
 
-.mono { font-family: var(--font-mono); }
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: black;
+}
+
+::-webkit-scrollbar-thumb {
+  background: white/20;
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: white/40;
+}

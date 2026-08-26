@@ -15,6 +15,18 @@ def reprojection_rmse(src_pts: np.ndarray, ref_pts: np.ndarray, H: np.ndarray) -
     return float(np.sqrt(np.mean(err ** 2)))
 
 
+def per_point_reprojection_error(src_pts: np.ndarray, ref_pts: np.ndarray, H: np.ndarray) -> np.ndarray:
+    """Per-match reprojection error (px), one value per row of src_pts/ref_pts.
+
+    Same quantity RANSAC/MAGSAC++ thresholds against when classifying inliers,
+    exposed per-point so a UI can re-classify at an arbitrary threshold."""
+    if len(src_pts) == 0 or H is None:
+        return np.zeros(0)
+    pts = src_pts.reshape(-1, 1, 2).astype(np.float32)
+    proj = cv2.perspectiveTransform(pts, H).reshape(-1, 2)
+    return np.linalg.norm(proj - ref_pts, axis=1)
+
+
 def direct_rmse(pts_a: np.ndarray, pts_b: np.ndarray) -> float:
     """RMSE between two already-corresponding point sets (no reprojection),
     used to compare warp-method outputs directly."""

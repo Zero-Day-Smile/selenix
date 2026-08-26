@@ -253,6 +253,7 @@ def run_registration(src_path: str, ref_path: str, out_dir: str,
 
     inlier_indices = np.where(geo.inlier_mask)[0]
     pos_in_inliers = {int(idx): k for k, idx in enumerate(inlier_indices)}
+    reproj_errors = metrics.per_point_reprojection_error(match_res.src_pts, match_res.ref_pts, geo.H)
 
     match_points = []
     for i in range(n_total):
@@ -262,6 +263,7 @@ def run_registration(src_path: str, ref_path: str, out_dir: str,
             "confidence": float(match_res.confidences[i]) if i < len(match_res.confidences) else None,
             "inlier": bool(geo.inlier_mask[i]),
             "uniform_selected": bool(selected_mask[i]),
+            "reproj_error_px": float(reproj_errors[i]) if len(reproj_errors) else None,
             "refined_src_x": None, "refined_src_y": None, "refinement_offset_px": None,
         }
         if i in pos_in_inliers:
@@ -305,6 +307,13 @@ def run_registration(src_path: str, ref_path: str, out_dir: str,
         "estimated_scale_factor_from_homography": round(scale_refined, 4),
         "src_keypoints": match_res.n_keypoints_src,
         "ref_keypoints": match_res.n_keypoints_ref,
+        # Shape of the PROCESSED images (src_processed.png / ref_processed.png),
+        # which is the coordinate space match_points.json's src_x/src_y and
+        # ref_x/ref_y are actually in -- distinct from src_original_shape below,
+        # which is the pre-processing upload dimensions and would misscale any
+        # overlay drawn against the processed images.
+        "src_shape": list(src_proc.shape[:2]),
+        "ref_shape": list(ref_proc.shape[:2]),
         "homography": H_final.tolist(),
         "warps_computed": {
             "global_homography": registered_path,
@@ -478,12 +487,14 @@ def run_registration_manual_seed(src_path: str, ref_path: str, out_dir: str,
     cv2.imwrite(os.path.join(out_dir, "ref_processed.png"), ref_proc)
 
     inlier_pos = {int(idx): k for k, idx in enumerate(np.where(geo.inlier_mask)[0])}
+    reproj_errors = metrics.per_point_reprojection_error(src_pts, ref_pts, geo.H)
     match_points = []
     for i in range(len(seed_points)):
         entry = {
             "src_x": float(src_pts[i][0]), "src_y": float(src_pts[i][1]),
             "ref_x": float(ref_pts[i][0]), "ref_y": float(ref_pts[i][1]),
             "confidence": None, "inlier": bool(geo.inlier_mask[i]), "uniform_selected": bool(geo.inlier_mask[i]),
+            "reproj_error_px": float(reproj_errors[i]) if len(reproj_errors) else None,
             "refined_src_x": None, "refined_src_y": None, "refinement_offset_px": None,
         }
         if i in inlier_pos:
@@ -514,6 +525,8 @@ def run_registration_manual_seed(src_path: str, ref_path: str, out_dir: str,
             if rmse_pre_refine and not np.isnan(rmse_pre_refine) and rmse_pre_refine > 0
             and not np.isnan(rmse_post_refine) else None
         ),
+        "src_shape": list(src_proc.shape[:2]),
+        "ref_shape": list(ref_proc.shape[:2]),
         "homography": H_final.tolist(),
         "warps_computed": {
             "global_homography": registered_path,
