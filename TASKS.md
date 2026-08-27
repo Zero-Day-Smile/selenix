@@ -459,5 +459,91 @@ apparent contrast, unlike most other real frames. Diagnosed properly before touc
   `M1385774154LE` before/after confirms crater rims and small-scale terrain texture that were
   completely invisible in the old washed-out preview are now clearly visible.
 
+## Sun-angle / scale / rotation invariance test suite (this session, part 6)
+
+Our PS is titled "multi-modal, sun angle and scale invariant image correspondence." Every real
+pair tested so far (the 24-pair sweep above) conflates that literal requirement with the much
+harder, still-unsolved problem of crater self-similarity on ordinary terrain — a pipeline that
+fails on a real pair could be failing because of self-similar terrain, not because it can't
+tolerate a sun-angle/scale/rotation difference. This test isolates just the latter, using
+synthetic same-source pairs with an **exact known ground-truth transform** (something the 24 real
+pairs can never provide, since their true transform isn't independently known).
+
+**Method** (`backend/pipeline/relighting.py`, `backend/pipeline/synthetic_invariance.py`,
+`backend/scripts/invariance_sweep.py`, `backend/scripts/invariance_plots.py`):
+- **Sun-angle**: image-derived relighting, NOT a physically ground-truthed resimulation. A coarse
+  global DEM (LOLA, ~59m/px) was deliberately ruled out — it would only change illumination
+  correctly at the DEM's coarse scale, not at the actual crater scale visible in
+  0.5-25m/px NAC/TMC-2 imagery. Instead: treat the image's own intensity gradient as a stand-in
+  for local surface slope (the "bump map from a grayscale texture" trick), integrate it into a
+  fake relative height field (Frankot-Chellappa FFT gradient integration), then relight via
+  per-pixel Lambertian shading *plus* a real cast-shadow horizon sweep over that fake height field.
+  A first attempt using only per-pixel Lambertian shading (no height field, no occlusion) visually
+  failed at the mandatory checkpoint — it just dimmed the whole image uniformly and showed zero
+  visible change under an azimuth shift, since it had no way to represent one crater's rim casting
+  a shadow onto the terrain beyond it. Fixed before proceeding, not shipped broken. Validated via
+  an exact round-trip identity check (relight at the same real known sun angle reproduces the
+  original to within 1/255 max pixel diff) and a visual checkpoint (elevation drops plausibly
+  lengthen/darken crater-rim shadows; azimuth rotation confirmed real via an isolated shadow-mask
+  diagnostic, though the effect is subtle in the final composited image for this densely-textured,
+  shallow-crater regolith terrain — a real, terrain-dependent limitation, not glossed over).
+  Real sun angle for each source taken from its actual `.spm` ancillary telemetry, never assumed.
+- **Scale**: Lanczos resampling at exact known factors — no approximation, ground truth is exact.
+- **Rotation**: `cv2.getRotationMatrix2D` about image center with an expanded (non-cropping)
+  canvas; the resulting affine, extended to 3x3, IS the ground-truth homography exactly, since we
+  control the exact warp used to generate the reference image. Added on top of the original task
+  scope since it's essentially free and directly covers the third axis implied by "scale
+  invariant" in the PS title.
+- **Ground truth**: every synthetic pair's exact applied transform (H_gt) is stored as a JSON
+  sidecar next to the pair, never regenerated after the fact.
+- **Pipeline**: the real, completely unmodified `run_pipeline.run_registration()` (SIFT + LoFTR
+  auto-select, MAGSAC++, degenerate-homography guard, sub-pixel refinement, full validation) — no
+  special-casing for synthetic data.
+- **True registration error** (the new metric these synthetic pairs make possible): estimated
+  homography decomposed and compared against H_gt for rotation error (deg), scale error (ratio),
+  and translation error (px); plus 4-corner reprojection error in both px and real ground meters
+  (using each source's real GSD — from real `geometry.csv` lon/lat span for the two Chandrayaan-2
+  sources, or a coarser real KML-footprint-area estimate for the one LRO NAC source, which has no
+  per-pixel label GSD in its real archive product — confirmed by reading its label, not assumed).
+
+**Sources**: `tmc2_20260811_1856` and `tmc2_20260803_0049` (Chandrayaan-2 TMC-2, real `.spm` sun
+angle available) + `M1306094925LE` (LRO NAC, scale/rotation only — no real sun-angle telemetry
+exists for NAC in our archive). 82 total synthetic pairs, every one run through the real pipeline.
+
+**Results** (plots: `backend/outputs/invariance_sweep/plots/plot_{a,b,c,d}_*.png`; raw data:
+`backend/outputs/invariance_sweep/results.jsonl`, `thresholds.json`):
+
+- **Sun-angle** (Plot A): 100% validation pass rate held through -30deg elevation change; first
+  degradation at **-45deg** (drops to 50% — 1 of 2 CH2 sources fails). Mean true reprojection
+  error grows from 0m (baseline) to ~467m at -45deg.
+- **Scale** (Plot B): **100% pass rate held across the entire tested range**, 0.5x-2.0x, all 3
+  sources. Mean reprojection error stays under ~81m even at the extremes (0.5x/2.0x) — this axis
+  is the pipeline's clear strength.
+- **Rotation** (Plot C): NOT a smooth degradation — a flat, **terrain-dependent categorical
+  split**. 2 of 3 sources (`tmc2_20260811_1856`, `M1306094925LE`) pass at every tested angle up to
+  90deg. The third (`tmc2_20260803_0049`) fails validation at every nonzero rotation tested
+  (15/30/45/90deg alike), pulling the aggregate pass rate to a flat 66.7% from 15deg onward rather
+  than a gradual curve. This is a real, terrain/geometry-dependent difference between sources, not
+  measurement noise — reported as such rather than averaged into a misleading smooth trend.
+- **Compound** (Plot D heatmap, rotation fixed at 30deg): pass rate is a flat 50% across every
+  scale x sun-delta combination from 0-30deg sun delta (entirely explained by the same
+  per-source rotation split above — one source always fails at 30deg rotation regardless of sun
+  or scale), then drops to a complete **0%** the moment sun delta reaches -45deg, for both sources,
+  at every scale. The two named "hard compound" cases: (sun -30deg, scale 1.5x, rot 30deg) passed
+  for 1/2 sources; (sun -45deg, scale 2.0x, rot 45deg) failed for both sources.
+
+**Caveats (restated, not dropped from this summary)**:
+- Sun-angle relighting is an approximate, image-derived resynthesis, not physically ground-truthed
+  — it conflates real topographic shading with albedo texture, and has no real vertical scale.
+  Azimuth-direction sensitivity is real (confirmed via an isolated diagnostic) but subtle in the
+  composited image for shallow, densely-cratered regolith terrain specifically.
+- NAC source has no real per-pixel GSD; its meters-based error numbers use a coarser real
+  KML-footprint-area estimate, not a per-axis-precise value like the CH2 sources.
+- **This test does NOT test cross-sensor or self-similar-terrain correspondence** — that remains
+  the separately-documented finding from the 24 real pairs above. This suite isolates
+  illumination/scale/rotation tolerance on synthetic same-source pairs with exact ground truth
+  only; a pipeline that passes every curve here can still fail on a real cross-sensor pair for
+  reasons this suite cannot see.
+
 ## Notes / deviations
 - LoFTR (deep matcher) requires torch+kornia (~GBs). Wired behind a try/import with automatic fallback to classical if unavailable, so the system never breaks if the ML stack isn't installed. Documented in README with install instructions to enable it.

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import Navbar from '../landing_components/Navbar';
+import Navbar, { type Page } from '../landing_components/Navbar';
 import Hero from '../landing_components/Hero';
 import SectionInteractive from '../landing_components/SectionInteractive';
 import SectionCTA from '../landing_components/SectionCTA';
@@ -9,7 +9,7 @@ import landingVideo from '../assets/landing.mp4';
 
 // ADD PROPS HERE
 interface LandingProps {
-  onNavigate: (page: 'landing' | 'workspace') => void;
+  onNavigate: (page: Page) => void;
 }
 
 export default function Landing({ onNavigate }: LandingProps) {

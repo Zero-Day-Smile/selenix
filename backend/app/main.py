@@ -219,6 +219,30 @@ async def api_history(sensor_type: str | None = None, limit: int = 200):
     return memory.get_history(sensor_type, limit)
 
 
+# Real plots from the sun-angle/scale/rotation invariance test suite
+# (backend/scripts/invariance_sweep.py + invariance_plots.py, see TASKS.md
+# "Sun-angle / scale / rotation invariance test suite"). Fixed allowlist,
+# not a directory listing or arbitrary filename, same pattern as the
+# Chandrayaan-2 image endpoints above -- this can never be used to read
+# arbitrary paths off disk.
+INVARIANCE_PLOTS_DIR = os.path.join(BASE_DIR, "outputs", "invariance_sweep", "plots")
+INVARIANCE_PLOT_FILES = {
+    "plot_a_sun_angle.png", "plot_b_scale.png", "plot_c_rotation.png", "plot_d_compound_heatmap.png",
+}
+
+
+@app.get("/api/invariance_plots/{filename}")
+async def api_invariance_plot(filename: str):
+    from fastapi.responses import FileResponse
+    if filename not in INVARIANCE_PLOT_FILES:
+        raise HTTPException(404, f"unknown invariance plot {filename!r}")
+    path = os.path.join(INVARIANCE_PLOTS_DIR, filename)
+    if not os.path.exists(path):
+        raise HTTPException(404, "plot not generated yet -- run backend/scripts/invariance_sweep.py "
+                                  "then invariance_plots.py")
+    return FileResponse(path)
+
+
 @app.get("/api/sensor_summary")
 async def api_sensor_summary():
     return memory.get_sensor_summary()

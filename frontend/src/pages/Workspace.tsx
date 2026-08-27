@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import Navbar from '../landing_components/Navbar';
+import Navbar, { type Page } from '../landing_components/Navbar';
 import WorkspaceHeader from '../workspace_components/WorkspaceHeader';
 import StepUpload from '../workspace_components/StepUpload';
 import StepDetection from '../workspace_components/StepDetection';
@@ -35,7 +35,7 @@ function getImageDims(file: File): Promise<{ w: number; h: number }> {
   });
 }
 
-export default function Workspace({ onNavigate }: { onNavigate: (page: 'landing' | 'workspace') => void }) {
+export default function Workspace({ onNavigate }: { onNavigate: (page: Page) => void }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
