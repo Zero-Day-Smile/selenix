@@ -14,7 +14,7 @@ import cv2
 import numpy as np
 from skimage.metrics import structural_similarity
 
-from . import ingestion, preprocessing, matching, geometry, registration, refinement, metrics, memory
+from . import ingestion, preprocessing, matching, geometry, registration, refinement, metrics, memory, shadow
 
 
 def _save_ssim_heatmap(ref_u8: np.ndarray, warped_u8: np.ndarray, H: np.ndarray,
@@ -247,6 +247,19 @@ def run_registration(src_path: str, ref_path: str, out_dir: str,
     cv2.imwrite(os.path.join(out_dir, "src_processed.png"), src_proc)
     cv2.imwrite(os.path.join(out_dir, "ref_processed.png"), ref_proc)
 
+    # Layer A of the shadow/PSR feature: transient shadow visible AT THE
+    # MOMENT OF CAPTURE only -- never "permanent," see shadow.py's docstring.
+    src_shadow = shadow.identify_shadow_mask(src_proc)
+    ref_shadow = shadow.identify_shadow_mask(ref_proc)
+    shadow.render_shadow_overlay_png(src_shadow["mask"], os.path.join(out_dir, "src_shadow_overlay.png"))
+    shadow.render_shadow_overlay_png(ref_shadow["mask"], os.path.join(out_dir, "ref_shadow_overlay.png"))
+    src_shadow_regions = shadow.find_shadow_regions(src_shadow["mask"])
+    ref_shadow_regions = shadow.find_shadow_regions(ref_shadow["mask"])
+    shadow_analysis = {
+        "src": {**{k: v for k, v in src_shadow.items() if k != "mask"}, "regions": src_shadow_regions},
+        "ref": {**{k: v for k, v in ref_shadow.items() if k != "mask"}, "regions": ref_shadow_regions},
+    }
+
     n_inliers = int(geo.inlier_mask.sum())
     n_total = int(len(match_res.src_pts))
     inlier_ratio = float(n_inliers / n_total) if n_total else 0.0
@@ -321,7 +334,10 @@ def run_registration(src_path: str, ref_path: str, out_dir: str,
             "thin_plate_spline": registered_tps_path,
             "ssim_heatmap": ssim_path,
             "ssim_data": ssim_stats.get("data_json_path"),
+            "src_shadow_overlay": os.path.join(out_dir, "src_shadow_overlay.png"),
+            "ref_shadow_overlay": os.path.join(out_dir, "ref_shadow_overlay.png"),
         },
+        "shadow_analysis": shadow_analysis,
         "rotation_consistency": rotation_consistency,
         "homography_quality": homography_quality,
         "ssim": ssim_stats,

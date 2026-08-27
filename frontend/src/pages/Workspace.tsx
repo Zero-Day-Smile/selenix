@@ -129,6 +129,13 @@ export default function Workspace({ onNavigate }: { onNavigate: (page: 'landing'
         runDirId && result.warps_computed?.global_homography ? outputUrl(runDirId, 'registered_global.png') : null,
       ssimHeatmapUrl: runDirId && result.warps_computed?.ssim_heatmap ? outputUrl(runDirId, 'ssim_heatmap.png') : null,
       ssimHeatmapDataUrl: runDirId && result.warps_computed?.ssim_data ? outputUrl(runDirId, 'ssim_heatmap_data.json') : null,
+      srcShadowOverlayUrl: runDirId && result.warps_computed?.src_shadow_overlay ? outputUrl(runDirId, 'src_shadow_overlay.png') : null,
+      refShadowOverlayUrl: runDirId && result.warps_computed?.ref_shadow_overlay ? outputUrl(runDirId, 'ref_shadow_overlay.png') : null,
+      // Only ever set from a real backend result -- the simulated fallback
+      // pipeline never fabricates shadow analysis (it doesn't run real
+      // pixel statistics on the actual uploaded image), so this stays null
+      // in simulation mode rather than showing made-up shadow content.
+      shadowAnalysis: result.shadow_analysis ?? null,
       matchPointsCsvUrl: runDirId ? outputUrl(runDirId, 'match_points.csv') : null,
       metricsJsonUrl: runDirId ? outputUrl(runDirId, 'metrics.json') : null,
       matchPoints,

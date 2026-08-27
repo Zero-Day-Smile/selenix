@@ -1,5 +1,5 @@
 // workspace_components/types.ts
-import type { MatchPoint } from '../services/api';
+import type { MatchPoint, ShadowAnalysis } from '../services/api';
 
 export interface WorkspaceData {
   sourceFile: File | null;
@@ -27,6 +27,12 @@ export interface WorkspaceData {
   ssimHeatmapDataUrl: string | null;
   matchPointsCsvUrl: string | null;
   metricsJsonUrl: string | null;
+
+  // Layer A shadow analysis (transient, "at time of capture" only -- see
+  // ShadowOverlay.tsx for why this must never be labeled PSR/permanent)
+  srcShadowOverlayUrl: string | null;
+  refShadowOverlayUrl: string | null;
+  shadowAnalysis: ShadowAnalysis | null;
 
   // raw match points (all matches, inlier + outlier), in processed-image pixel space
   matchPoints: MatchPoint[];
@@ -110,6 +116,9 @@ export const emptyWorkspaceData = (): WorkspaceData => ({
   registeredGlobalUrl: null,
   ssimHeatmapUrl: null,
   ssimHeatmapDataUrl: null,
+  srcShadowOverlayUrl: null,
+  refShadowOverlayUrl: null,
+  shadowAnalysis: null,
   matchPointsCsvUrl: null,
   metricsJsonUrl: null,
   matchPoints: [],

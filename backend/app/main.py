@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from backend.pipeline.run_pipeline import run_registration, run_registration_manual_seed
-from backend.pipeline import memory, synthetic, ingestion, preprocessing, crater_catalog, geo_extent_guard, tmc_geometry
+from backend.pipeline import memory, synthetic, ingestion, preprocessing, crater_catalog, geo_extent_guard, tmc_geometry, ancillary_readers
 import json as _json
 import cv2 as _cv2
 
@@ -37,6 +37,32 @@ def _chandrayaan2_paths(image_id: str) -> dict:
     return {
         "preview": os.path.join(d, f"{image_id}_preview.png"),
         "geometry": os.path.join(d, f"{image_id}_geometry.csv"),
+    }
+
+
+def _sun_angle_context(uploaded_path: str) -> dict | None:
+    """Real solar-geometry context for the shadow feature (Layer A), ONLY
+    when the uploaded file is one of our 4 known real Chandrayaan-2 frames
+    (matched by filename, same allowlist as the crater feature) -- never
+    fabricated or estimated for anything else. Returns None, silently, when
+    there's no real sun-angle file to attach; the shadow analysis itself
+    still works either way, this is enrichment, not a dependency."""
+    basename = os.path.basename(uploaded_path)
+    image_id = next((i for i in CHANDRAYAAN2_IMAGE_IDS if i in basename), None)
+    if image_id is None:
+        return None
+    spm_path = os.path.join(CHANDRAYAAN2_DIR, image_id, f"{image_id}_sun_angles.spm")
+    if not os.path.exists(spm_path):
+        return None
+    try:
+        summary = ancillary_readers.read_spm(spm_path)
+    except Exception:
+        return None
+    return {
+        "source": "Chandrayaan-2 real .spm ancillary telemetry (ISSDC)",
+        "sun_elevation_mean_deg": round(summary.sun_elevation_mean, 2),
+        "solar_incidence_mean_deg": round(summary.solar_incidence_mean, 2),
+        "n_records": summary.n_records,
     }
 
 app = FastAPI(title="Lunar Image Correspondence API")
@@ -107,6 +133,9 @@ async def api_run(
     result = run_registration(src_path, ref_path, out_dir, matcher=matcher,
                                illum_mode=illum_mode, sensor_type=sensor_type)
     result["run_dir_id"] = run_id
+    if "shadow_analysis" in result:
+        result["shadow_analysis"]["src"]["sun_angle_context"] = _sun_angle_context(src_path)
+        result["shadow_analysis"]["ref"]["sun_angle_context"] = _sun_angle_context(ref_path)
     return result
 
 

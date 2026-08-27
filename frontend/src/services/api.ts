@@ -54,6 +54,36 @@ export interface WarpsComputed {
   thin_plate_spline?: string | null;
   ssim_heatmap?: string | null;
   ssim_data?: string | null;
+  src_shadow_overlay?: string | null;
+  ref_shadow_overlay?: string | null;
+}
+
+export interface SunAngleContext {
+  source: string;
+  sun_elevation_mean_deg: number;
+  solar_incidence_mean_deg: number;
+  n_records: number;
+}
+
+export interface ShadowRegion {
+  pixel_x: number;
+  pixel_y: number;
+  area_px: number;
+  bbox: { x: number; y: number; w: number; h: number };
+}
+
+export interface ShadowStats {
+  threshold: number;
+  shadow_pixel_count: number;
+  shadow_fraction: number;
+  method: string;
+  sun_angle_context: SunAngleContext | null;
+  regions: ShadowRegion[];
+}
+
+export interface ShadowAnalysis {
+  src: ShadowStats;
+  ref: ShadowStats;
 }
 
 export interface RunResultOk {
@@ -87,6 +117,12 @@ export interface RunResultOk {
   // real pair at 24.75:1 or 43.74:1. `degenerate: true` means the warp is
   // near-singular and must not be rendered without an explicit warning.
   homography_quality?: { condition_ratio: number; degenerate: boolean; threshold: number };
+  // Layer A shadow analysis: pixels dark AT TIME OF CAPTURE only. Never
+  // implies permanence -- see backend/pipeline/shadow.py's docstring. None
+  // of our real images fall within any published PSR product's latitude
+  // coverage (confirmed against real footprint geometry), so there is
+  // currently no Layer B (real PSR ground truth) to cross-reference against.
+  shadow_analysis?: ShadowAnalysis;
   elapsed_seconds: number;
   src_path?: string;
   ref_path?: string;

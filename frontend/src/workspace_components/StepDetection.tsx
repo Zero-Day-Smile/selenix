@@ -6,6 +6,8 @@ import OsdPointOverlay from './OsdPointOverlay';
 import CraterPinOverlay from './CraterPinOverlay';
 import CorrespondenceCanvas, { type CorrespondencePoint } from './CorrespondenceCanvas';
 import { chandrayaan2ImageIdForFilename, fetchChandrayaan2Craters, type Chandrayaan2CratersResponse } from '../services/api';
+import { useShadowOverlayLayer } from './useShadowOverlayLayer';
+import ShadowRegionOverlay from './ShadowRegionOverlay';
 
 // Real crater-catalog overlay for whichever pane(s) happen to be one of our
 // 4 real Chandrayaan-2 frames with real per-pixel geometry (matched by
@@ -34,6 +36,11 @@ function useChandrayaan2Craters(filename: string | null | undefined) {
 
 export default function StepDetection({ data }: { data: WorkspaceData }) {
   const [mode, setMode] = useState<'lines' | 'zoom'>('zoom');
+  // Layer A only (see useShadowOverlayLayer / shadow.py): pixels dark AT THE
+  // MOMENT OF CAPTURE, never labeled "permanent" or "PSR" anywhere below.
+  // Off by default since this panel is already dense with match/crater
+  // content -- an explicit, deliberate toggle rather than always-on.
+  const [showShadow, setShowShadow] = useState(false);
 
   const srcImg = data.srcProcessedUrl || data.sourceUrl;
   const refImg = data.refProcessedUrl || data.refUrl;
@@ -44,6 +51,10 @@ export default function StepDetection({ data }: { data: WorkspaceData }) {
   const refElRef = useRef<HTMLDivElement>(null);
   const srcViewer = useOsdViewer(srcElRef, mode === 'zoom' ? srcImg : null);
   const refViewer = useOsdViewer(refElRef, mode === 'zoom' ? refImg : null);
+
+  useShadowOverlayLayer(srcViewer, mode === 'zoom' ? data.srcShadowOverlayUrl : null, showShadow ? 0.85 : 0);
+  useShadowOverlayLayer(refViewer, mode === 'zoom' ? data.refShadowOverlayUrl : null, showShadow ? 0.85 : 0);
+  const hasShadowData = !!(data.srcShadowOverlayUrl || data.refShadowOverlayUrl);
 
   const { imageId: srcCraterImageId, resp: srcCraterResp } = useChandrayaan2Craters(data.sourceFile?.name);
   const { imageId: refCraterImageId, resp: refCraterResp } = useChandrayaan2Craters(data.refFile?.name);
@@ -135,9 +146,21 @@ export default function StepDetection({ data }: { data: WorkspaceData }) {
   return (
     <div>
       <div className="bg-white border border-gray-200 p-6 shadow-sm rounded-sm">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <h3 className="text-xs font-bold tracking-wide uppercase text-gray-700">Candidate matches (pre-verification)</h3>
-          <ModeToggle mode={mode} setMode={setMode} />
+          <div className="flex items-center gap-2">
+            {hasShadowData && mode === 'zoom' && (
+              <button
+                onClick={() => setShowShadow((s) => !s)}
+                className={`px-3 py-1.5 text-[10px] font-mono uppercase tracking-wide border rounded-sm ${
+                  showShadow ? 'bg-orange-600 text-white border-orange-600' : 'bg-white text-gray-500 border-gray-300 hover:border-black'
+                }`}
+              >
+                Shadow (at capture)
+              </button>
+            )}
+            <ModeToggle mode={mode} setMode={setMode} />
+          </div>
         </div>
 
         {mode === 'lines' && srcImg && refImg && srcShape && refShape ? (
@@ -151,6 +174,13 @@ export default function StepDetection({ data }: { data: WorkspaceData }) {
                 <OsdPointOverlay viewer={srcViewer} points={srcOverlayPoints} />
                 {srcCraterImageId && (
                   <CraterPinOverlay viewer={srcViewer} craters={srcCraters.points} gsdMPerPx={srcCraters.gsdMPerPx} />
+                )}
+                {showShadow && data.shadowAnalysis?.src.regions && (
+                  <ShadowRegionOverlay
+                    viewer={srcViewer}
+                    regions={data.shadowAnalysis.src.regions}
+                    sunAngleContext={data.shadowAnalysis.src.sun_angle_context}
+                  />
                 )}
               </div>
               {srcCraterImageId && srcCraterResp && srcCraterResp.count === 0 && (
@@ -167,6 +197,13 @@ export default function StepDetection({ data }: { data: WorkspaceData }) {
                 {refCraterImageId && (
                   <CraterPinOverlay viewer={refViewer} craters={refCraters.points} gsdMPerPx={refCraters.gsdMPerPx} />
                 )}
+                {showShadow && data.shadowAnalysis?.ref.regions && (
+                  <ShadowRegionOverlay
+                    viewer={refViewer}
+                    regions={data.shadowAnalysis.ref.regions}
+                    sunAngleContext={data.shadowAnalysis.ref.sun_angle_context}
+                  />
+                )}
               </div>
               {refCraterImageId && refCraterResp && refCraterResp.count === 0 && (
                 <p className="text-[9px] text-purple-600">
@@ -182,6 +219,13 @@ export default function StepDetection({ data }: { data: WorkspaceData }) {
             <span className="inline-block w-3 h-3 rounded-full border-2 border-purple-500" /> Real crater-catalog
             markers (Robbins 2019 / USGS Gazetteer) — click a marker for details. Catalogs are complete only to
             ~1–2km diameter; smaller craters visible here are not individually cataloged.
+          </p>
+        )}
+
+        {showShadow && hasShadowData && (
+          <p className="text-[10px] text-orange-600 mt-2 flex items-center gap-1.5">
+            <span className="inline-block w-3 h-3 rounded-full border-2 border-orange-500" /> Shadow regions (at time
+            of capture) — click a marker for details, including why this is not a permanent shadow (PSR).
           </p>
         )}
 
