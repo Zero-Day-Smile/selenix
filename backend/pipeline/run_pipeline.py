@@ -205,10 +205,14 @@ def run_registration(src_path: str, ref_path: str, out_dir: str,
     rmse_post_refine = metrics.reprojection_rmse(refined_src, inlier_ref, H_final)
 
     condition_ratio = metrics.homography_condition_ratio(H_final)
+    scale_disagreement = metrics.scale_disagreement_ratio(scale_refined, scale_est.factor)
     homography_quality = {
         "condition_ratio": round(condition_ratio, 2),
         "degenerate": condition_ratio > metrics.DEGENERATE_HOMOGRAPHY_THRESHOLD,
         "threshold": metrics.DEGENERATE_HOMOGRAPHY_THRESHOLD,
+        "scale_disagreement_ratio": round(scale_disagreement, 3),
+        "scale_disagreement_threshold": metrics.SCALE_DISAGREEMENT_THRESHOLD,
+        "scale_disagreement_flagged": scale_disagreement > metrics.SCALE_DISAGREEMENT_THRESHOLD,
     }
 
     warp_global = registration.warp_global_homography(src_proc, H_final, ref_proc.shape)

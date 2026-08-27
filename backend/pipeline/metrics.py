@@ -58,6 +58,38 @@ def homography_condition_ratio(H: np.ndarray) -> float:
 DEGENERATE_HOMOGRAPHY_THRESHOLD = 5.0  # see homography_condition_ratio docstring for the real data behind this
 
 
+def scale_disagreement_ratio(scale_from_homography: float, scale_from_dimensions: float) -> float:
+    """How far apart the two independent scale estimates are: the
+    homography-derived scale (from the fitted transform's linear part) vs
+    the dimension-based scale (from the two images' real pixel/GSD extents,
+    computed before any matching happens). A genuine, correctly-fit
+    transform should recover close to the same scale either way; a
+    degenerate fit routinely does not, because the "scale" the homography
+    implies is really an artifact of a bad point configuration, not a real
+    physical relationship between the two images.
+
+    Threshold derived from this project's actual stored runs (same source
+    as homography_condition_ratio's threshold): every confirmed-valid case
+    (condition ratio <= 5:1) disagrees by at most 2.95x (most sit at
+    ~1.00x; the highest observed valid case was a condition ratio of 4.74,
+    right at the edge of the pass threshold, with 2.95x disagreement). Every
+    confirmed-degenerate case with a real scale distortion disagrees by
+    7.88x-10.74x. That leaves a clean, wide, unoccupied gap from ~3x to
+    ~7.9x in the real measured data, unlike condition_ratio this is NOT a
+    perfect classifier on its own (one real degenerate case, condition
+    ratio 35.04, has only 1.75x scale disagreement -- its distortion shows
+    up in shape, not overall scale) -- so this is a second, independent
+    cross-check alongside the condition-ratio gate, not a replacement for
+    it."""
+    if not scale_from_homography or not scale_from_dimensions:
+        return float("inf")
+    a, b = abs(scale_from_homography), abs(scale_from_dimensions)
+    return float(max(a / b, b / a))
+
+
+SCALE_DISAGREEMENT_THRESHOLD = 3.0  # see scale_disagreement_ratio docstring for the real data behind this
+
+
 def pairwise_rotation_consistency(src_pts: np.ndarray, ref_pts: np.ndarray,
                                    max_pairs: int = 3000, seed: int = 0) -> dict:
     """The same diagnostic used throughout this project's real-data testing

@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import OpenSeadragon from 'openseadragon';
 import type { WorkspaceData } from './types';
+import RotationGauge from './RotationGauge';
 
 export default function StepRegistration({ data }: { data: WorkspaceData }) {
   const [blend, setBlend] = useState(50);
@@ -54,6 +55,8 @@ export default function StepRegistration({ data }: { data: WorkspaceData }) {
 
   const { rotation, scale, tx, ty } = data.transformParams;
 
+  const hq = data.homographyQuality;
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       <div className="bg-white border border-gray-200 p-6 shadow-sm rounded-sm">
@@ -77,19 +80,54 @@ export default function StepRegistration({ data }: { data: WorkspaceData }) {
           </p>
         )}
       </div>
-      <div className="bg-white border border-gray-200 p-6 shadow-sm rounded-sm">
-        <h3 className="text-xs font-bold tracking-wide uppercase mb-4">Estimated homography</h3>
+      <div
+        className={`bg-white border p-6 shadow-sm rounded-sm ${
+          hq?.degenerate ? 'border-red-400 ring-1 ring-red-300' : 'border-gray-200'
+        }`}
+      >
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <h3 className="text-xs font-bold tracking-wide uppercase">Estimated homography</h3>
+          {hq?.degenerate && (
+            <span className="text-[9px] font-bold uppercase tracking-wide text-white bg-red-600 px-2 py-1 rounded-sm shrink-0">
+              Degenerate — see evidence below
+            </span>
+          )}
+        </div>
         <div className="grid grid-cols-3 gap-2 bg-gray-50 p-4 border border-gray-200 font-mono text-xs text-center">
           {data.homography.flat().map((v, i) => (
             <div key={i}>{typeof v === 'number' ? v.toFixed(4) : v}</div>
           ))}
         </div>
-        <div className="mt-6 space-y-2">
-          <Param label="Rotation θ (from homography)" value={`${rotation.toFixed(2)}°`} />
-          <Param label="Scale factor (from homography)" value={`${scale.toFixed(3)}×`} />
-          <Param label="Scale factor (dimension-based)" value={`${data.metrics.scaleFactorDimensionBased.toFixed(3)}×`} />
-          <Param label="Translation (tx, ty)" value={`${tx.toFixed(1)}, ${ty.toFixed(1)} px`} />
-          <Param label="Post-refinement RMSE" value={`${data.transformParams.residualRMS.toFixed(3)} px`} />
+        {hq && (
+          <p className="text-[10px] text-gray-500 mt-2 font-mono">
+            Condition ratio (largest/smallest singular value): <span className="font-bold">{hq.conditionRatio.toFixed(2)}:1</span>{' '}
+            (threshold: {hq.threshold}:1)
+          </p>
+        )}
+
+        <div className="mt-6 flex items-start gap-4">
+          <RotationGauge rotationDeg={rotation} />
+          <div className="flex-1 space-y-2">
+            <Param label="Rotation θ (from homography)" value={`${rotation.toFixed(2)}°`} />
+            <Param label="Translation (tx, ty)" value={`${tx.toFixed(1)}, ${ty.toFixed(1)} px`} />
+            <Param label="Post-refinement RMSE" value={`${data.transformParams.residualRMS.toFixed(3)} px`} />
+          </div>
+        </div>
+
+        <div className="mt-5 pt-4 border-t border-gray-100">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500 mb-2">
+            Scale cross-check — homography vs. dimensions/GSD
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-gray-50 border border-gray-200 rounded-sm px-2.5 py-1.5">
+              <div className="text-[9px] text-gray-400 uppercase tracking-wide">From homography</div>
+              <div className="font-mono font-bold text-sm">{scale.toFixed(3)}×</div>
+            </div>
+            <div className="bg-gray-50 border border-gray-200 rounded-sm px-2.5 py-1.5">
+              <div className="text-[9px] text-gray-400 uppercase tracking-wide">From dimensions/GSD</div>
+              <div className="font-mono font-bold text-sm">{data.metrics.scaleFactorDimensionBased.toFixed(3)}×</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

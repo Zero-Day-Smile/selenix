@@ -174,6 +174,9 @@ export default function Workspace({ onNavigate }: { onNavigate: (page: 'landing'
             conditionRatio: result.homography_quality.condition_ratio,
             degenerate: result.homography_quality.degenerate,
             threshold: result.homography_quality.threshold,
+            scaleDisagreementRatio: result.homography_quality.scale_disagreement_ratio ?? null,
+            scaleDisagreementThreshold: result.homography_quality.scale_disagreement_threshold ?? null,
+            scaleDisagreementFlagged: result.homography_quality.scale_disagreement_flagged ?? false,
           }
         : null,
       ssim: {

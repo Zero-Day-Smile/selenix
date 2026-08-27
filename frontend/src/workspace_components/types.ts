@@ -89,6 +89,12 @@ export interface WorkspaceData {
     conditionRatio: number;
     degenerate: boolean;
     threshold: number;
+    // Second, independent cross-check (see backend/pipeline/metrics.py::
+    // scale_disagreement_ratio) -- absent for manual-seed runs, which have
+    // no dimension-based scale estimate to compare against.
+    scaleDisagreementRatio: number | null;
+    scaleDisagreementThreshold: number | null;
+    scaleDisagreementFlagged: boolean;
   } | null;
   ssim: {
     mean: number;

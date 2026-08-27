@@ -116,7 +116,19 @@ export interface RunResultOk {
   // project's synthetic/hard-case pairs lands at ~1:1, every confirmed-failed
   // real pair at 24.75:1 or 43.74:1. `degenerate: true` means the warp is
   // near-singular and must not be rendered without an explicit warning.
-  homography_quality?: { condition_ratio: number; degenerate: boolean; threshold: number };
+  homography_quality?: {
+    condition_ratio: number;
+    degenerate: boolean;
+    threshold: number;
+    // Second, independent cross-check: how far apart the homography-derived
+    // and dimension-based scale estimates are. Threshold (3x) was set from
+    // real measured data -- see backend/pipeline/metrics.py::scale_disagreement_ratio.
+    // Absent for manual-seed runs, which have no independent dimension-based
+    // scale estimate to compare against.
+    scale_disagreement_ratio?: number;
+    scale_disagreement_threshold?: number;
+    scale_disagreement_flagged?: boolean;
+  };
   // Layer A shadow analysis: pixels dark AT TIME OF CAPTURE only. Never
   // implies permanence -- see backend/pipeline/shadow.py's docstring. None
   // of our real images fall within any published PSR product's latitude
@@ -333,6 +345,16 @@ export function homographyConditionRatio(h: number[][]): number {
   return s1 / Math.max(s2, 1e-9);
 }
 
+// Same metric and threshold (3x) the backend uses -- mirrors
+// backend/pipeline/metrics.py::scale_disagreement_ratio exactly. See that
+// docstring for the real measured data behind the threshold.
+export const SCALE_DISAGREEMENT_THRESHOLD = 3.0;
+export function scaleDisagreementRatio(scaleFromHomography: number, scaleFromDimensions: number): number {
+  if (!scaleFromHomography || !scaleFromDimensions) return Infinity;
+  const a = Math.abs(scaleFromHomography), b = Math.abs(scaleFromDimensions);
+  return Math.max(a / b, b / a);
+}
+
 // ---------------------------------------------------------------------------
 // SIMULATION ENGINE
 //
@@ -439,6 +461,7 @@ export async function runSimulatedPipeline(
     });
   }
   (globalThis as any).__lastSimulatedMatchPoints = matchPoints;
+  const dimensionBasedScale = scale + rand(-0.02, 0.02);
 
   const result: RunResultOk = {
     status: 'ok',
@@ -460,7 +483,7 @@ export async function runSimulatedPipeline(
     uniformity_score_all_inliers: uniformityAll,
     uniformity_score_selected: uniformitySelected,
     n_uniform_selected: Math.round(inlierCount * rand(0.6, 0.95)),
-    estimated_scale_factor_dimension_based: scale + rand(-0.02, 0.02),
+    estimated_scale_factor_dimension_based: dimensionBasedScale,
     estimated_scale_factor_from_homography: scale,
     src_keypoints: srcKeypoints,
     ref_keypoints: refKeypoints,
@@ -491,7 +514,15 @@ export async function runSimulatedPipeline(
     // not a claim that a real degenerate case looks like this.
     homography_quality: (() => {
       const ratio = homographyConditionRatio(homography);
-      return { condition_ratio: ratio, degenerate: ratio > DEGENERATE_HOMOGRAPHY_THRESHOLD, threshold: DEGENERATE_HOMOGRAPHY_THRESHOLD };
+      const scaleRatio = scaleDisagreementRatio(scale, dimensionBasedScale);
+      return {
+        condition_ratio: ratio,
+        degenerate: ratio > DEGENERATE_HOMOGRAPHY_THRESHOLD,
+        threshold: DEGENERATE_HOMOGRAPHY_THRESHOLD,
+        scale_disagreement_ratio: scaleRatio,
+        scale_disagreement_threshold: SCALE_DISAGREEMENT_THRESHOLD,
+        scale_disagreement_flagged: scaleRatio > SCALE_DISAGREEMENT_THRESHOLD,
+      };
     })(),
     elapsed_seconds: rand(1.8, 4.5),
     refinement_stats: { attempted: inlierCount, accepted: Math.round(inlierCount * 0.9), skipped_scale_guard: false },
