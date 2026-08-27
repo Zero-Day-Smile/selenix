@@ -13,10 +13,10 @@ import OpenSeadragon from 'openseadragon';
 import type { ShadowRegion, SunAngleContext } from '../services/api';
 
 const POPUP_HEIGHT_ESTIMATE = 210;
-const MIN_SCREEN_RADIUS = 5;
-const MAX_SCREEN_RADIUS = 22;
+// Usability floor so a genuinely tiny real blob still has a clickable target.
+const MIN_SCREEN_BOX = 10;
 
-type ScreenRegion = ShadowRegion & { sx: number; sy: number; screenRadius: number };
+type ScreenRegion = ShadowRegion & { rectLeft: number; rectTop: number; rectW: number; rectH: number; sx: number; sy: number };
 
 export default function ShadowRegionOverlay({
   viewer,
@@ -53,15 +53,29 @@ export default function ShadowRegionOverlay({
       const baseItem = viewer.world.getItemAt(0);
       if (!baseItem) return;
       const next = regionsRef.current.map((r) => {
-        const centerScreen = baseItem.imageToViewerElementCoordinates(new OpenSeadragon.Point(r.pixel_x, r.pixel_y));
-        const edgeScreen = baseItem.imageToViewerElementCoordinates(
-          new OpenSeadragon.Point(r.pixel_x + Math.sqrt(r.area_px / Math.PI), r.pixel_y)
+        // Hit area matches the region's real bounding box (from cv2's
+        // connected-component stats) so the clickable area matches what's
+        // actually visible in the orange raster tint, instead of a tiny dot
+        // at the centroid that most clicks on the visible blob would miss.
+        const topLeft = baseItem.imageToViewerElementCoordinates(new OpenSeadragon.Point(r.bbox.x, r.bbox.y));
+        const bottomRight = baseItem.imageToViewerElementCoordinates(
+          new OpenSeadragon.Point(r.bbox.x + r.bbox.w, r.bbox.y + r.bbox.h)
         );
-        const screenRadius = Math.min(
-          Math.max(Math.hypot(edgeScreen.x - centerScreen.x, edgeScreen.y - centerScreen.y), MIN_SCREEN_RADIUS),
-          MAX_SCREEN_RADIUS
-        );
-        return { ...r, sx: centerScreen.x, sy: centerScreen.y, screenRadius };
+        const rawW = bottomRight.x - topLeft.x;
+        const rawH = bottomRight.y - topLeft.y;
+        const rectW = Math.max(rawW, MIN_SCREEN_BOX);
+        const rectH = Math.max(rawH, MIN_SCREEN_BOX);
+        const cx = (topLeft.x + bottomRight.x) / 2;
+        const cy = (topLeft.y + bottomRight.y) / 2;
+        return {
+          ...r,
+          rectLeft: cx - rectW / 2,
+          rectTop: cy - rectH / 2,
+          rectW,
+          rectH,
+          sx: cx,
+          sy: cy,
+        };
       });
       setScreenPoints(next);
     };
@@ -97,12 +111,12 @@ export default function ShadowRegionOverlay({
         <div
           key={i}
           onClick={() => setOpenIndex(openIndex === i ? null : i)}
-          className="absolute rounded-full pointer-events-auto cursor-pointer"
+          className="absolute rounded-sm pointer-events-auto cursor-pointer"
           style={{
-            left: r.sx - r.screenRadius,
-            top: r.sy - r.screenRadius,
-            width: r.screenRadius * 2,
-            height: r.screenRadius * 2,
+            left: r.rectLeft,
+            top: r.rectTop,
+            width: r.rectW,
+            height: r.rectH,
             border: `${openIndex === i ? 2.5 : 1.5}px solid #fb923c`,
             boxShadow: '0 0 3px rgba(251,146,60,0.9)',
           }}

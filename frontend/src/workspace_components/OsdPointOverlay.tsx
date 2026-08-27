@@ -32,8 +32,13 @@ export default function OsdPointOverlay({
   useEffect(() => {
     if (!viewer) return;
     const recompute = () => {
+      // Use the base image item's own transform, not viewport.imageToViewerElementCoordinates
+      // -- that one is ambiguous (and OSD warns loudly) once a second layer
+      // (e.g. the shadow overlay) is added to the same viewer's world.
+      const baseItem = viewer.world.getItemAt(0);
+      if (!baseItem) return;
       const next = pointsRef.current.map((p) => {
-        const px = viewer.viewport.imageToViewerElementCoordinates(new OpenSeadragon.Point(p.x, p.y));
+        const px = baseItem.imageToViewerElementCoordinates(new OpenSeadragon.Point(p.x, p.y));
         return { ...p, sx: px.x, sy: px.y };
       });
       setScreenPoints(next);

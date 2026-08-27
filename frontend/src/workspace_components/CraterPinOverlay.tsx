@@ -58,14 +58,19 @@ export default function CraterPinOverlay({
   useEffect(() => {
     if (!viewer) return;
     const recompute = () => {
+      // Use the base image item's own transform, not viewport.imageToViewerElementCoordinates
+      // -- that one is ambiguous (and OSD warns loudly) once a second layer
+      // (e.g. the shadow overlay) is added to the same viewer's world.
+      const baseItem = viewer.world.getItemAt(0);
+      if (!baseItem) return;
       const gsd = gsdRef.current;
       const next = cratersRef.current.map((c) => {
         const centerPt = new OpenSeadragon.Point(c.pixel_x, c.pixel_y);
-        const centerScreen = viewer.viewport.imageToViewerElementCoordinates(centerPt);
+        const centerScreen = baseItem.imageToViewerElementCoordinates(centerPt);
         let screenRadius = MIN_SCREEN_RADIUS;
         if (c.diameter_km && gsd > 0) {
           const radiusImagePx = (c.diameter_km * 1000) / 2 / gsd;
-          const edgeScreen = viewer.viewport.imageToViewerElementCoordinates(
+          const edgeScreen = baseItem.imageToViewerElementCoordinates(
             new OpenSeadragon.Point(c.pixel_x + radiusImagePx, c.pixel_y)
           );
           screenRadius = Math.max(Math.hypot(edgeScreen.x - centerScreen.x, edgeScreen.y - centerScreen.y), MIN_SCREEN_RADIUS);
