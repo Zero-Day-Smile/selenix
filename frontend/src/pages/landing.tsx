@@ -3,7 +3,6 @@ import Navbar from '../landing_components/Navbar';
 import Hero from '../landing_components/Hero';
 import SectionInteractive from '../landing_components/SectionInteractive';
 import SectionCTA from '../landing_components/SectionCTA';
-import Footer from '../landing_components/Footer';
 
 // IMPORT ASSETS DIRECTLY
 import landingVideo from '../assets/landing.mp4';
@@ -64,7 +63,6 @@ export default function Landing({ onNavigate }: LandingProps) {
           
           <div className="w-full bg-[#0E0E0E] h-screen flex flex-col">
             <SectionCTA />
-            <Footer />
           </div>
         </div>
 

@@ -1,9 +1,36 @@
 // workspace_components/StepDetection.tsx
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { WorkspaceData } from './types';
 import { useOsdViewer } from './useOsdViewer';
 import OsdPointOverlay from './OsdPointOverlay';
+import CraterPinOverlay from './CraterPinOverlay';
 import CorrespondenceCanvas, { type CorrespondencePoint } from './CorrespondenceCanvas';
+import { chandrayaan2ImageIdForFilename, fetchChandrayaan2Craters, type Chandrayaan2CratersResponse } from '../services/api';
+
+// Real crater-catalog overlay for whichever pane(s) happen to be one of our
+// 4 real Chandrayaan-2 frames with real per-pixel geometry (matched by
+// filename against backend/app/main.py's CHANDRAYAAN2_IMAGE_IDS). An
+// uploaded pair that isn't one of those 4 frames has no real geometry
+// backing it, so this intentionally stays silent for that pane rather than
+// guessing -- no crater markers is the honest behavior there, not a bug.
+function useChandrayaan2Craters(filename: string | null | undefined) {
+  const imageId = useMemo(() => chandrayaan2ImageIdForFilename(filename), [filename]);
+  const [resp, setResp] = useState<Chandrayaan2CratersResponse | null>(null);
+  useEffect(() => {
+    setResp(null);
+    if (!imageId) return;
+    let cancelled = false;
+    fetchChandrayaan2Craters(imageId).then((r) => {
+      if (!cancelled) setResp(r);
+    }).catch(() => {
+      if (!cancelled) setResp(null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [imageId]);
+  return { imageId, resp };
+}
 
 export default function StepDetection({ data }: { data: WorkspaceData }) {
   const [mode, setMode] = useState<'lines' | 'zoom'>('zoom');
@@ -17,6 +44,49 @@ export default function StepDetection({ data }: { data: WorkspaceData }) {
   const refElRef = useRef<HTMLDivElement>(null);
   const srcViewer = useOsdViewer(srcElRef, mode === 'zoom' ? srcImg : null);
   const refViewer = useOsdViewer(refElRef, mode === 'zoom' ? refImg : null);
+
+  const { imageId: srcCraterImageId, resp: srcCraterResp } = useChandrayaan2Craters(data.sourceFile?.name);
+  const { imageId: refCraterImageId, resp: refCraterResp } = useChandrayaan2Craters(data.refFile?.name);
+
+  // Real catalog crater pixel positions are computed by the backend against
+  // the RAW uploaded preview image's dimensions. The pane here displays the
+  // PROCESSED image (illumination-normalized, possibly uniformly rescaled by
+  // multi-scale leveling -- a pure resize, never a crop, confirmed in
+  // preprocessing.level_for_matching). So positions are rescaled by the
+  // exact ratio between the two, not re-derived or approximated.
+  // When there's no real processed image (backend unreachable / simulation
+  // fallback, or a real pair the backend rejected e.g. non-overlapping
+  // frames), the pane displays the RAW uploaded image directly -- which is
+  // exactly what the crater endpoint's pixel positions were computed
+  // against, so the correct scale there is 1:1, not "no markers."
+  // gsd_m_per_px (real meters-per-pixel, from the backend's real lon/lat
+  // span and native pixel dimensions) is in NATIVE-raw-image space; rescale
+  // it by the same factor as the pixel positions so a crater's real
+  // diameter converts correctly into whichever pixel space is displayed.
+  const srcCraters = useMemo(() => {
+    if (!srcCraterResp) return { points: [], gsdMPerPx: 0 };
+    let w = srcCraterResp.image_width;
+    let h = srcCraterResp.image_height;
+    if (srcShape && data.srcProcessedUrl) [h, w] = srcShape;
+    const sx = w / srcCraterResp.image_width;
+    const sy = h / srcCraterResp.image_height;
+    return {
+      points: srcCraterResp.craters.map((c) => ({ ...c, pixel_x: c.pixel_x * sx, pixel_y: c.pixel_y * sy })),
+      gsdMPerPx: srcCraterResp.gsd_m_per_px / sx,
+    };
+  }, [srcCraterResp, srcShape, data.srcProcessedUrl]);
+  const refCraters = useMemo(() => {
+    if (!refCraterResp) return { points: [], gsdMPerPx: 0 };
+    let w = refCraterResp.image_width;
+    let h = refCraterResp.image_height;
+    if (refShape && data.refProcessedUrl) [h, w] = refShape;
+    const sx = w / refCraterResp.image_width;
+    const sy = h / refCraterResp.image_height;
+    return {
+      points: refCraterResp.craters.map((c) => ({ ...c, pixel_x: c.pixel_x * sx, pixel_y: c.pixel_y * sy })),
+      gsdMPerPx: refCraterResp.gsd_m_per_px / sx,
+    };
+  }, [refCraterResp, refShape, data.refProcessedUrl]);
 
   // Detection shows the matcher's raw output, BEFORE geometric verification --
   // colored by match confidence only, never by inlier/outlier. That verdict
@@ -79,16 +149,40 @@ export default function StepDetection({ data }: { data: WorkspaceData }) {
               <div className="relative h-[380px] overflow-hidden rounded-sm">
                 <div ref={srcElRef} className="w-full h-full border border-gray-300 bg-black" />
                 <OsdPointOverlay viewer={srcViewer} points={srcOverlayPoints} />
+                {srcCraterImageId && (
+                  <CraterPinOverlay viewer={srcViewer} craters={srcCraters.points} gsdMPerPx={srcCraters.gsdMPerPx} />
+                )}
               </div>
+              {srcCraterImageId && srcCraterResp && srcCraterResp.count === 0 && (
+                <p className="text-[9px] text-purple-600">
+                  No catalog-listed craters (≥1–2km) fall within this image's real footprint.
+                </p>
+              )}
             </div>
             <div className="flex flex-col gap-1">
               <span className="text-[10px] text-gray-500 uppercase tracking-wide">Reference</span>
               <div className="relative h-[380px] overflow-hidden rounded-sm">
                 <div ref={refElRef} className="w-full h-full border border-gray-300 bg-black" />
                 <OsdPointOverlay viewer={refViewer} points={refOverlayPoints} />
+                {refCraterImageId && (
+                  <CraterPinOverlay viewer={refViewer} craters={refCraters.points} gsdMPerPx={refCraters.gsdMPerPx} />
+                )}
               </div>
+              {refCraterImageId && refCraterResp && refCraterResp.count === 0 && (
+                <p className="text-[9px] text-purple-600">
+                  No catalog-listed craters (≥1–2km) fall within this image's real footprint.
+                </p>
+              )}
             </div>
           </div>
+        )}
+
+        {(srcCraterImageId || refCraterImageId) && (
+          <p className="text-[10px] text-purple-600 mt-2 flex items-center gap-1.5">
+            <span className="inline-block w-3 h-3 rounded-full border-2 border-purple-500" /> Real crater-catalog
+            markers (Robbins 2019 / USGS Gazetteer) — click a marker for details. Catalogs are complete only to
+            ~1–2km diameter; smaller craters visible here are not individually cataloged.
+          </p>
         )}
 
         <div className="flex justify-between mt-4 text-xs text-gray-500">

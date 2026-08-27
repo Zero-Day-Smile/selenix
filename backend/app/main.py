@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from backend.pipeline.run_pipeline import run_registration, run_registration_manual_seed
-from backend.pipeline import memory, synthetic, ingestion, preprocessing
+from backend.pipeline import memory, synthetic, ingestion, preprocessing, crater_catalog, geo_extent_guard, tmc_geometry
 import json as _json
 import cv2 as _cv2
 
@@ -19,6 +19,25 @@ RUNS_DIR = os.path.join(BASE_DIR, "outputs", "runs")
 SAMPLES_DIR = os.path.join(BASE_DIR, "data", "samples")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(RUNS_DIR, exist_ok=True)
+
+# The 4 real Chandrayaan-2 TMC-2 frames with real per-pixel geometry.csv
+# files (see backend/data/real/chandrayaan2/). Deliberately a fixed
+# allowlist, not a directory listing, so this endpoint can never be used to
+# read arbitrary paths off disk.
+CHANDRAYAAN2_DIR = os.path.join(BASE_DIR, "data", "real", "chandrayaan2")
+CHANDRAYAAN2_IMAGE_IDS = [
+    "tmc2_20260803_0049", "tmc2_20260809_1606", "tmc2_20260811_1856", "tmc2_20260812_0506",
+]
+
+
+def _chandrayaan2_paths(image_id: str) -> dict:
+    if image_id not in CHANDRAYAAN2_IMAGE_IDS:
+        raise HTTPException(404, f"unknown Chandrayaan-2 image id {image_id!r}")
+    d = os.path.join(CHANDRAYAAN2_DIR, image_id)
+    return {
+        "preview": os.path.join(d, f"{image_id}_preview.png"),
+        "geometry": os.path.join(d, f"{image_id}_geometry.csv"),
+    }
 
 app = FastAPI(title="Lunar Image Correspondence API")
 
@@ -211,6 +230,107 @@ async def api_run_hardcase(case_id: str, matcher: str = "auto"):
     result["run_dir_id"] = run_id
     result["hardcase_label"] = case["label"]
     return result
+
+
+@app.get("/api/craters")
+async def api_craters(lon_min: float, lon_max: float, lat_min: float, lat_max: float):
+    """Real catalog craters (Robbins 2019 + USGS Gazetteer, queried
+    separately and never merged/matched -- see crater_catalog.py) whose
+    published center falls within the given 0-360 longitude / -90..90
+    latitude bounding box. Caller must already have converted any -180/180
+    source geometry (e.g. NAC KML footprints) to 0-360 -- this endpoint
+    does not silently detect or correct a wrong convention."""
+    if lon_min > lon_max or lat_min > lat_max:
+        raise HTTPException(400, "lon_min must be <= lon_max and lat_min <= lat_max")
+    craters = crater_catalog.query_bbox(lon_min, lon_max, lat_min, lat_max)
+    return {"bbox": {"lon_min": lon_min, "lon_max": lon_max, "lat_min": lat_min, "lat_max": lat_max},
+            "count": len(craters), "craters": craters,
+            "catalog_status": crater_catalog.catalog_status()}
+
+
+@app.get("/api/chandrayaan2_images")
+async def list_chandrayaan2_images():
+    """The 4 real Chandrayaan-2 TMC-2 frames with real per-pixel geometry
+    available for the crater-overlay feature, each with its real lon/lat
+    footprint (computed from geometry.csv, not assumed)."""
+    out = []
+    for image_id in CHANDRAYAAN2_IMAGE_IDS:
+        paths = _chandrayaan2_paths(image_id)
+        if not os.path.exists(paths["preview"]) or not os.path.exists(paths["geometry"]):
+            continue
+        rows = geo_extent_guard.load_tmc_geometry(paths["geometry"])
+        lons = [r[2] for r in rows]
+        lats = [r[3] for r in rows]
+        out.append({
+            "id": image_id,
+            "image_url": f"/api/chandrayaan2_images/{image_id}/image.png",
+            "bbox": {"lon_min": min(lons), "lon_max": max(lons), "lat_min": min(lats), "lat_max": max(lats)},
+        })
+    return {"images": out}
+
+
+@app.get("/api/chandrayaan2_images/{image_id}/image.png")
+async def chandrayaan2_image(image_id: str):
+    from fastapi.responses import FileResponse
+    paths = _chandrayaan2_paths(image_id)
+    if not os.path.exists(paths["preview"]):
+        raise HTTPException(404, "image not found")
+    return FileResponse(paths["preview"])
+
+
+@app.get("/api/chandrayaan2_images/{image_id}/craters")
+async def chandrayaan2_image_craters(image_id: str):
+    """Real catalog craters inside this specific image's real footprint,
+    with each crater's real lat/lon already converted to this image's own
+    displayed-pixel coordinates (via tmc_geometry's inverse geometry-grid
+    mapping, verified against a known grid vertex to exact 0.0 residual and
+    visually confirmed against real crater features -- see TASKS.md).
+    An empty `craters` list is a valid, expected result: published catalogs
+    are complete only down to ~1-2km diameter, and it's common for a
+    targeted crop to contain zero catalog-sized craters."""
+    paths = _chandrayaan2_paths(image_id)
+    if not os.path.exists(paths["geometry"]) or not os.path.exists(paths["preview"]):
+        raise HTTPException(404, "image not found")
+
+    img = _cv2.imread(paths["preview"])
+    h, w = img.shape[:2]
+    rows = geo_extent_guard.load_tmc_geometry(paths["geometry"])
+    lons = [r[2] for r in rows]
+    lats = [r[3] for r in rows]
+    lon_min, lon_max, lat_min, lat_max = min(lons), max(lons), min(lats), max(lats)
+
+    matches = crater_catalog.query_bbox(lon_min, lon_max, lat_min, lat_max)
+    grid = tmc_geometry.load_geometry_grid(paths["geometry"])
+    craters = []
+    for c in matches:
+        x, y, resid = tmc_geometry.native_pixel_for_lonlat(grid, c["lon"], c["lat"])
+        craters.append({
+            **c,
+            "pixel_x": x * w / grid["native_width"],
+            "pixel_y": y * h / grid["native_height"],
+        })
+
+    # Real average ground sample distance for this frame, from its real
+    # lon/lat span and real native pixel dimensions (cos(lat)-corrected for
+    # longitude, since a degree of longitude covers less real ground away
+    # from the equator) -- lets the frontend size each crater's marker to
+    # its real diameter instead of a fixed, meaningless radius.
+    import math
+    moon_radius_km = 1737.4
+    mean_lat_rad = math.radians((lat_min + lat_max) / 2)
+    lon_span_km = math.radians(lon_max - lon_min) * moon_radius_km * math.cos(mean_lat_rad)
+    lat_span_km = math.radians(lat_max - lat_min) * moon_radius_km
+    gsd_x_m = (lon_span_km * 1000) / grid["native_width"]
+    gsd_y_m = (lat_span_km * 1000) / grid["native_height"]
+    gsd_m_per_px = (gsd_x_m + gsd_y_m) / 2
+
+    return {
+        "image_id": image_id, "image_width": w, "image_height": h,
+        "bbox": {"lon_min": lon_min, "lon_max": lon_max, "lat_min": lat_min, "lat_max": lat_max},
+        "count": len(craters), "craters": craters,
+        "gsd_m_per_px": gsd_m_per_px,
+        "catalog_status": crater_catalog.catalog_status(),
+    }
 
 
 @app.get("/api/health")

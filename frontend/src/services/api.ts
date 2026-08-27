@@ -196,6 +196,78 @@ export function outputUrl(runId: string, filename: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Real crater-catalog overlay (Robbins 2019 Lunar Crater Database + USGS
+// Gazetteer of Planetary Nomenclature). See backend/pipeline/crater_catalog.py
+// and tmc_geometry.py -- every field here traces to one of those two real,
+// cited catalogs, queried and returned separately (never merged/matched by
+// proximity), for the 4 real Chandrayaan-2 frames with real per-pixel geometry.
+
+export interface Chandrayaan2ImageSummary {
+  id: string;
+  image_url: string;
+  bbox: { lon_min: number; lon_max: number; lat_min: number; lat_max: number };
+}
+
+export interface CatalogCrater {
+  name: string | null;
+  crater_id: string | null;
+  diameter_km: number | null;
+  lat: number;
+  lon: number;
+  source: string;
+  gazetteer_link: string | null;
+  pixel_x: number;
+  pixel_y: number;
+}
+
+export interface CatalogStatus {
+  robbins_total_craters: number;
+  gazetteer_named_craters: number;
+  robbins_source: string;
+  gazetteer_source: string;
+}
+
+export interface Chandrayaan2CratersResponse {
+  image_id: string;
+  image_width: number;
+  image_height: number;
+  bbox: { lon_min: number; lon_max: number; lat_min: number; lat_max: number };
+  count: number;
+  craters: CatalogCrater[];
+  gsd_m_per_px: number;
+  catalog_status: CatalogStatus;
+}
+
+export async function listChandrayaan2Images(): Promise<Chandrayaan2ImageSummary[]> {
+  const res = await fetch(`${API_BASE}/api/chandrayaan2_images`);
+  if (!res.ok) throw new Error(`Failed to list Chandrayaan-2 images (${res.status})`);
+  const data = await res.json();
+  return data.images;
+}
+
+export function chandrayaan2ImageUrl(imageId: string): string {
+  return `${API_BASE}/api/chandrayaan2_images/${imageId}/image.png`;
+}
+
+export async function fetchChandrayaan2Craters(imageId: string): Promise<Chandrayaan2CratersResponse> {
+  const res = await fetch(`${API_BASE}/api/chandrayaan2_images/${imageId}/craters`);
+  if (!res.ok) throw new Error(`Failed to fetch craters for ${imageId} (${res.status})`);
+  return res.json();
+}
+
+// Must match backend/app/main.py's CHANDRAYAAN2_IMAGE_IDS -- the only real
+// frames we have real per-pixel geometry.csv for, and therefore the only
+// ones the crater overlay can honestly attempt. An uploaded file that
+// doesn't match one of these has no real geometry backing it, so the
+// overlay correctly stays silent rather than guessing.
+const CHANDRAYAAN2_IMAGE_IDS = ['tmc2_20260803_0049', 'tmc2_20260809_1606', 'tmc2_20260811_1856', 'tmc2_20260812_0506'];
+
+export function chandrayaan2ImageIdForFilename(filename: string | null | undefined): string | null {
+  if (!filename) return null;
+  return CHANDRAYAAN2_IMAGE_IDS.find((id) => filename.includes(id)) ?? null;
+}
+
+// ---------------------------------------------------------------------------
 // Homography decomposition — used to derive real rotation/scale for display,
 // instead of (incorrectly) reusing rotation_consistency.std_deg, which is a
 // pairwise-agreement metric, not the transform's rotation angle.
