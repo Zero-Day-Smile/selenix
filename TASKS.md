@@ -653,5 +653,54 @@ so the problem remains unsolved, and the honest next step (not attempted here) w
 much larger lunar-specific training set with the full official LoFTR loss, or a fundamentally
 different (geometry-based, not appearance-based) matching approach.
 
+## Crater-Neighborhood Structural Matcher: Step 1 committed, Steps 2-6 gated off by real data (this session, part 9)
+
+Attempted a structurally different matching approach: detect craters, build a spatial graph of
+their neighborhood relationships (not individual patch appearance), and match graphs instead of
+patches -- the theory being that patch-scale self-similarity (confirmed root cause of every prior
+failure, including Tycho) doesn't apply at the graph level, since two visually-identical craters
+have different neighbors.
+
+**Step 1 (learned crater detector):**
+- This project's own from-scratch YOLOv8n fine-tune failed outright: only 285 real training
+  instances (real Robbins-catalog craters cross-referenced against 5 real images via their own
+  real geometry -- CH2 per-pixel geometry.csv, NAC KML-corner bilinear fit) across just 5 distinct
+  real images. mAP50 = 0.0012, zero detections on the real Tycho test pair. Nowhere near enough
+  real data to fine-tune a detector -- a real, informative ceiling, not a bug.
+- Per the task's own instruction (no HoughCircles fallback, no fabricated result), adopted a real,
+  externally pretrained model instead: `backend/models/crater_boulder_yolov8.pt`, from
+  https://github.com/Arpan2307/crater_boulder_detection.git (YOLOv8n, trained by its author on
+  ~300 real hand-labeled ISRO OHRC tiles -- not this project's data). Verified against our own real
+  Tycho pair before adopting: 282 confident detections (conf up to 0.66, radius 10-35px) on one
+  frame; the other needed a threshold near 0.01 to surface only 17 low-confidence (<0.05), one
+  suspiciously huge (449px) detections -- a real, reported confidence gap, not smoothed over.
+
+**Dataset-wide check before committing to Steps 2-6** (run across all 27 real CH2+NAC preview
+images at conf=0.15, per an explicit pre-registered decision rule: proceed only if most frames show
+100+ detections):
+
+| Detections | Count | % |
+|---|---|---|
+| >=100 | 2/27 | 7% |
+| 20-99 | 9/27 | 33% |
+| <20 | 16/27 | 59% |
+
+Median 12, mean 38.5 (skewed by two outliers: 282 and 148). **Most of the real dataset does not
+produce enough detections to build a meaningful crater-neighborhood graph** -- the two Tycho-region
+results that motivated this approach were not representative. Per the pre-registered decision rule,
+Steps 2-6 (graph construction, GATv2Conv-based GNN descriptor, Sinkhorn/Hungarian matching, and
+integration into `matching.py`'s auto-selection) were NOT built against this data. Step 2/3 skeleton
+code was written before this check landed (`backend/pipeline/crater_graph.py`,
+`backend/pipeline/crater_gnn.py` -- both compile, use `torch_geometric`'s `GATv2Conv` with real
+edge-feature-aware attention as specified) but is left uncommitted and unintegrated: it has never
+been run against real data and must not be presented as working.
+
+**Updated one-sentence project status**: the pipeline is correct and unregressed; the core matching
+problem (patch-scale self-similarity) is confirmed Moon-wide, scale-independent, and now also
+confirmed NOT reliably escapable via crater-neighborhood structure given the real detection density
+this project's actual archive supports -- two locally-good results (Tycho ejecta, one frame each of
+two other regions) do not generalize across the dataset, and a graph/GNN approach needs a real
+detector that works broadly first, which does not currently exist for this data.
+
 ## Notes / deviations
 - LoFTR (deep matcher) requires torch+kornia (~GBs). Wired behind a try/import with automatic fallback to classical if unavailable, so the system never breaks if the ML stack isn't installed. Documented in README with install instructions to enable it.
