@@ -545,5 +545,61 @@ exists for NAC in our archive). 82 total synthetic pairs, every one run through 
   only; a pipeline that passes every curve here can still fail on a real cross-sensor pair for
   reasons this suite cannot see.
 
+## Distinctive-landmark test: Tycho crater, macro-scale attempt (this session, part 7)
+
+Following the confirmed hypothesis that matchers operate at local patch scale (64-128px) where
+lunar terrain is self-similar even on distinctive landmarks, attempted a macro-scale retry on the
+real Tycho NAC pair from the earlier distinctive-landmark test (see part 6 above: `M1315458185LE`
+2019 vs `M1412862267LE` 2022, real overlapping footprint, 5/15 inliers, 44deg rotation std at
+native resolution).
+
+**Step 1 finding (before any matching was attempted, as required): the macro-scale premise doesn't
+hold for the data we have.** Tycho's real diameter (85.29km, confirmed via the Gazetteer) is
+computed to be vastly larger than either NAC frame's real cross-track swath width -- 2.7-3.8km,
+computed directly from the frames' own real KML footprint corners via Haversine distance, not
+assumed. LROC NAC is a narrow high-resolution linescan strip camera, not a wide-area framing
+camera: no downsampling factor of a single NAC frame can reveal Tycho's whole rim + central peak +
+ejecta blanket, because the frame's real footprint never contained that much of the crater to begin
+with. This was caught and reported before wasting matching time on top of it, per the checkpoint
+this task itself specified.
+
+**Follow-up attempt: real LROC WAC imagery** (100m/px, wide swath, genuinely capable of showing a
+whole crater in one frame). Found and downloaded two real, genuinely Tycho-containing WAC EDR
+frames via a live ODE product search (`M1405847456ME`, 2022-05; `M1408177929ME`, 2022-05, different
+orbit) -- along the way, fixed a real bug in the ODE query itself: the correct product-type code
+for LROC NAC EDR is `EDRNAC4` (PDS4), not `EDRNAC` -- the same "Invalid IIPT" error documented
+earlier in this file for a different NAC frame, now root-caused and fixed for any future ODE query.
+
+**WAC ingestion produces unusable noise, root-caused (not a quick bug):** verified via direct
+inspection of `pds4_tools`' returned structures that our PDS4 reader correctly identifies and
+selects the real image array (the label's other structure is a `HeaderStructure` returning plain
+`bytes` with no `.ndim`, correctly skipped by our existing filter -- ruled out as a red herring).
+The real array (504x1024, matching its own declared Axis_Array dimensions exactly) genuinely
+contains near-uniform noise: 1st-99th percentile DN range is 12-18 out of 255, and stretching that
+narrow true range to full contrast (bypassing our adaptive stretch entirely, in case that was the
+culprit) still shows pure noise with only a coarse brightness gradient, no surface structure at any
+contrast level. Conclusion: unlike NAC EDR (whose raw counts show real terrain directly), WAC raw
+EDR requires real radiometric calibration (dark-frame subtraction, flat-fielding) and framelet
+geometric reassembly -- infrastructure this project does not have (no calibration files, no
+ISIS3-equivalent pipeline) -- before any surface signal is visible. This is a genuine data/tooling
+gap, not a fixable parsing bug, and was not pursued further given the scope.
+
+**Conclusion: the macro-scale coarse-to-fine retry could not be completed with data actually
+available to this project.** Neither NAC (wrong physical scale) nor WAC (raw data unusable without
+calibration infrastructure we lack) could supply a valid coarse image. The NAC-vs-NAC Tycho result
+from the distinctive-landmark test (part 6) stands as the final data point on this question:
+**5/15 inliers, 44deg rotation-consistency std, condition ratio 4.29:1 (the best geometric
+consistency of any real pair tested this session, still short of the 5:1 degenerate threshold's
+comfortable margin), UNVALIDATED.** A manual visual check of the tightest inlier match (0.14px
+reprojection error) showed similarly rugged Tycho-ejecta texture in both crops but not the same
+individual rocks/craters -- consistent with coincidental-texture matching, not real correspondence.
+
+**Updated one-sentence project status**: the pipeline is correct and unregressed; the core matching
+problem is confirmed Moon-wide and scale-independent within the data actually available to this
+project (patch-scale self-similarity, and no usable macro-scale imagery exists to test whether a
+truly whole-crater view would resolve it); the remaining paths are a domain-specifically fine-tuned
+model (Step 5, not yet attempted) or acquiring/calibrating imagery this project currently cannot
+process.
+
 ## Notes / deviations
 - LoFTR (deep matcher) requires torch+kornia (~GBs). Wired behind a try/import with automatic fallback to classical if unavailable, so the system never breaks if the ML stack isn't installed. Documented in README with install instructions to enable it.
