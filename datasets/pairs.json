@@ -1,0 +1,20 @@
+{
+  "_comment": "Real Chandrayaan-2 TMC-2 / LRO NAC pairs confirmed genuinely overlapping via real KML footprint geometry earlier in this project (backend/data/real/*_overlap_info.json, recommended_for_testing: true). Paths point at the actual PDS3/PDS4 archive files, not the derived preview PNGs used elsewhere in this repo. No fabricated pairs -- every entry here has been run through the real pipeline at least once (see TASKS.md).",
+  "pairs": [
+    {
+      "query": "backend/data/real/chandrayaan2/tmc2_20260811_1856/tmc2_20260811_1856.xml",
+      "reference": "backend/data/real/lro_nac/M1306094925LE/M1306094925LE.IMG",
+      "note": "602 verified real overlap points; best-documented pair this session."
+    },
+    {
+      "query": "backend/data/real/chandrayaan2/tmc2_20260811_1856/tmc2_20260811_1856.xml",
+      "reference": "backend/data/real/lro_nac/M1349544899LE/M1349544899LE.IMG",
+      "note": "180 verified real overlap points."
+    },
+    {
+      "query": "backend/data/real/chandrayaan2/tmc2_20260812_0506/tmc2_20260812_0506.xml",
+      "reference": "backend/data/real/lro_nac/M1342582517LE/M1342582517LE.IMG",
+      "note": "162 verified real overlap points."
+    }
+  ]
+}
