@@ -758,5 +758,58 @@ wired the existing crater detector into the live pipeline.
   0.15), not something the confidence slider can fully close. Reported to the user as-is rather
   than implying the slider is a fix for the model's real accuracy ceiling.
 
+## DEM-assisted registration: real LOLA data confirms resolution is insufficient even at Tycho scale, checkpoint stopped Steps 3-6 (this session, part 11)
+
+**Step 1**: downloaded the real LOLA GDR global elevation product `ldem_64.img`/`.lbl` (PDS
+Geosciences Node, `lro-l-lola-3-rdr-v1`), 64 px/deg (473.802 m/px), 16-bit signed DN,
+`HEIGHT = DN * 0.5m`, global coverage -90/90 lat, 0/360 lon -- confirmed exact byte count
+(530,841,600 = 11520 lines x 46080 bytes/line, matching the label exactly). Real visual sanity
+check at the FULL 85km crater scale (a 384x384px / ~182x182km crop centered on Tycho's real IAU
+coordinates, -43.31/348.68) clearly shows the crater bowl and rim in both raw elevation and a
+simple fixed-sun-angle hillshade -- confirmed LOLA 64ppd genuinely resolves Tycho at that broad
+scale, as the task's premise expected.
+
+**Real sun geometry, not from the PDS label (a real deviation from the task's literal
+instruction)**: the two real Tycho NAC frames use PDS4 labels which, like their PDS3
+counterparts checked earlier this session, do not carry INCIDENCE_ANGLE/SUB_SOLAR_AZIMUTH fields
+at all -- confirmed by direct inspection. Used two real substitutes instead: ODE REST API gives
+real per-product Incidence_angle/Emission_angle/Phase_angle (M1412862267LE: 67.59/1.72/69.2 deg;
+M1315458185LE: 42.07/15.26/40.54 deg), and real sun azimuth was derived via NAIF SPICE (real
+generic kernels: naif0012.tls, pck00011.tpc, moon_pa_de421_1900-2050.bpc, moon_080317.tf,
+de440s.bsp) computing the actual sub-solar point (`subslr`) at each frame's real UTC observation
+time and real center lat/lon. Cross-checked: SPICE-derived incidence matched ODE's real value to
+within 0.01-0.02 degrees for both frames -- a strong real validation of the geometry, not a
+coincidence (caught and fixed a real bug in the process: `spiceypy.reclat()` returns
+`(radius, lon, lat)`, not `(lon, lat, radius)` -- the initial unpacking bug produced a physically
+impossible -67 degree sub-solar latitude, caught by a real physical sanity bound: the Moon's real
+sub-solar latitude is always within about +/-1.5 degrees of the equator).
+
+**Step 2 checkpoint result: FAILED, decisively and quantitatively, not just "looks different"**.
+Generated real per-frame hillshades (`backend/scripts/dem_hillshade_generate.py`) in the exact
+same pixel grid as the real NAC crop already used for matching all session (reproduced the
+previously-established crop range for M1315458185LE almost exactly: lines [8614:29611] vs the
+earlier [8616:29611], and reproduced the previously-established output dimensions 706x2000 /
+482x2000 exactly, confirming the corner-bilinear-fraction method is consistent with prior work).
+Both hillshades are visually almost featureless flat gray -- no crater rims, no boulders, nothing
+resembling the real image's rugged texture. The real, quantitative reason: at this crop's real
+ground sampling (~5.8-5.9 m/px, matching the scale used for actual matching all session), the
+706x2000px and 482x2000px crops span only **8.6x24.5 and 6.0x24.9 REAL LOLA 64ppd pixels**
+respectively -- everything else in the hillshade image is bilinear-interpolation artifact, not
+real terrain signal. There is no way for the DEM to show real structure at this scale: the crop
+that needs matching (a few km wide, the actual overlap between the two NAC frames) is 60-80x
+smaller than the ~180km scale at which Step 1's own sanity check passed.
+
+**Per the task's own explicit instruction ("if the hillshade shows completely different structure
+... report that finding and stop"), Steps 3-6 were not attempted.** This is a stronger, empirically
+confirmed version of the same conclusion already reached theoretically earlier this session:
+LOLA's real resolution is sufficient for Tycho-scale (~85km) coarse anchoring, exactly as
+originally proposed, but is NOT sufficient at the actual overlap scale (a few km) that the
+patch-matching failure mode lives at -- DEM-assisted registration cannot help close that specific
+gap using this dataset, regardless of matcher choice. A genuinely coarse-to-fine pipeline using
+this real DEM would need to operate at two very different scales (DEM anchor at ~100km+, image
+matching at ~km), which is a different, larger architecture than "hillshade-match this crop" --
+out of scope for what was tested here, and not attempted without a further explicit decision to
+build a real multi-scale registration architecture.
+
 ## Notes / deviations
 - LoFTR (deep matcher) requires torch+kornia (~GBs). Wired behind a try/import with automatic fallback to classical if unavailable, so the system never breaks if the ML stack isn't installed. Documented in README with install instructions to enable it.

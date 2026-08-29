@@ -11,6 +11,8 @@ frontend/dist/
 # Generated/runtime data — never commit real mission imagery, run outputs, or caches
 backend/data/real/
 backend/data/samples/
+backend/data/lola_dem/
+backend/data/spice_kernels/
 backend/outputs/
 *.sqlite3
 
