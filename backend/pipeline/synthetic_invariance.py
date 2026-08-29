@@ -48,7 +48,7 @@ import os
 import cv2
 import numpy as np
 
-from . import geo_extent_guard, tmc_geometry
+from . import geo_extent_guard, tmc_geometry, relighting
 
 
 def lanczos_resize(gray_u8: np.ndarray, scale: float) -> np.ndarray:
@@ -113,3 +113,58 @@ def real_gsd_nac_area_estimate(image_id: str, nac_dir: str, preview_shape: tuple
     h, w = preview_shape[:2]
     gsd = math.sqrt((area_km2 * 1e6) / (w * h))
     return {"gsd_m_per_px": gsd, "method": "nac_kml_frame_extent_area_average_APPROXIMATE"}
+
+
+# ---------------------------------------------------------------------------
+# Shared variant-generation + true-error helpers. Used by both the offline
+# sweep (backend/scripts/invariance_sweep.py) and the live per-pair sweep
+# (backend/pipeline/live_invariance.py) -- one implementation, not two
+# copies that could silently drift apart.
+# ---------------------------------------------------------------------------
+
+def make_variant(gray: np.ndarray, sun: dict | None, sun_delta: float, scale: float, rotation_deg: float):
+    """Returns (image, H_gt_3x3, applied_new_elevation_or_None). See module
+    docstring for the ground-truth convention (H_gt maps source pixel
+    coords to their location in the reference image)."""
+    if sun_delta != 0:
+        assert sun is not None, "sun_delta != 0 requested for a source with no real sun-angle telemetry"
+        new_el = max(2.0, sun["elevation"] - abs(sun_delta))
+        shaded = relighting.relight(gray, sun["elevation"], sun["azimuth"], new_el, sun["azimuth"])
+    else:
+        shaded = gray
+        new_el = sun["elevation"] if sun else None
+
+    if rotation_deg == 0:
+        warped = lanczos_resize(shaded, scale)
+        H_gt = np.array([[scale, 0, 0], [0, scale, 0], [0, 0, 1]], dtype=np.float64)
+    else:
+        warped, H_gt = warp_scale_rotate(shaded, scale=scale, angle_deg=rotation_deg)
+    return warped, H_gt, new_el
+
+
+def decompose_h(H) -> dict:
+    H = np.array(H, dtype=np.float64)
+    a, b = H[0, 0], H[1, 0]
+    return {"rotation_deg": math.degrees(math.atan2(b, a)), "scale": math.hypot(a, b),
+            "tx": H[0, 2], "ty": H[1, 2]}
+
+
+def corner_reprojection_error_px(H_est, H_gt, src_shape) -> dict:
+    h, w = src_shape[:2]
+    corners = np.array([[0, 0], [w, 0], [0, h], [w, h]], dtype=np.float64)
+
+    def project(H, pts):
+        H = np.array(H, dtype=np.float64)
+        pts_h = np.hstack([pts, np.ones((4, 1))])
+        proj = (H @ pts_h.T).T
+        return proj[:, :2] / proj[:, [2]]
+
+    p_est = project(H_est, corners)
+    p_gt = project(H_gt, corners)
+    dists = np.linalg.norm(p_est - p_gt, axis=1)
+    return {"mean_px": float(dists.mean()), "max_px": float(dists.max()), "per_corner_px": dists.tolist()}
+
+
+def angular_diff_deg(a: float, b: float) -> float:
+    d = (a - b + 180.0) % 360.0 - 180.0
+    return abs(d)

@@ -702,5 +702,61 @@ this project's actual archive supports -- two locally-good results (Tycho ejecta
 two other regions) do not generalize across the dataset, and a graph/GNN approach needs a real
 detector that works broadly first, which does not currently exist for this data.
 
+## LU5M812TGT fine-tuning attempt, YOLOLens detour, and Step 7 frontend wiring (this session, part 10)
+
+**Goal**: fine-tune the adopted crater detector (part 9) further using the LU5M812TGT Zenodo
+dataset (record 13990480), gated on confirming its annotation format is real and usable before
+touching training code.
+
+**Step 1 result: hard blocker, confirmed via the Zenodo REST API directly** (not the lossy web
+page): the dataset is exactly one 580MB CSV (`Moon_Diamond_catalog_4.csv`: longitude, latitude,
+diameter, confidence columns) -- **no image tiles at all**. There is nothing to fine-tune a
+detector against. Per this task's own gate ("do not proceed until the format is confirmed
+compatible"), this stops the task as scoped.
+
+**Substitute investigation, real but ultimately negative**: the same paper's authors (La Grassa et
+al.) publish pretrained multi-head ONNX weights ("YOLOLens", optical + super-resolution) via a
+linked GitHub repo/Google Drive folder. Downloaded both variants, confirmed `ultralytics.YOLO()`
+can't load them (custom SR+detection export, not a standard ultralytics format -- it silently
+assumes a wrong 999-class head and crashes in NMS). Read the real plugin source
+(`riccardolagrassa/YOLOLens_QGIS_Plugin`) to extract the actual tiling/normalization/NMS/coordinate
+decode, and wrote a clean standalone reimplementation (kept locally during testing, not committed
+-- see verdict below).
+
+**Decisive real measurement: 16.2 seconds per 256x256 tile on CPU** (measured directly via
+`onnxruntime.InferenceSession`, not estimated). A single Tycho-pair image needs ~75-120 tiles at
+that tile/overlap scheme, i.e. ~20-30 minutes per image, versus ~1-2s for the currently-adopted
+model. This alone rules YOLOLens out for this pipeline regardless of accuracy -- killed the
+in-progress accuracy test rather than spend another ~30 minutes confirming a number that couldn't
+change the verdict. **Verdict: kept the existing Arpan2307 model; discarded the YOLOLens files.**
+
+**Step 7 (explicitly unconditional in the task, done regardless of the fine-tuning outcome above)**:
+wired the existing crater detector into the live pipeline.
+- `backend/pipeline/run_pipeline.py::_detect_craters_safe()` runs `crater_detector.detect_craters`
+  on both processed images (`src_processed.png`/`ref_processed.png`) of every uploaded pair, fails
+  soft (a detector error is reported in the result JSON, not crash-propagated), and adds a
+  `crater_detections` block to `metrics.json`.
+- Runs at a real confidence floor of 0.02 (not the earlier hardcoded 0.15) -- NMS/scoring cost is
+  identical regardless of the threshold (it only filters the model's own already-computed scores),
+  and this project's own measured data confirms the "right" threshold is genuinely image-dependent
+  (one real frame needed ~0.01 to surface anything at all, another was already dense at 0.15).
+  Returning the lower-confidence candidates lets the frontend reveal them on request instead of
+  silently guessing one threshold that's wrong for most images.
+- Frontend: `DetectedCraterOverlay.tsx` (cyan markers, distinct from the amber match dots and the
+  purple crater-catalog rings), a toggle + confidence slider in `StepDetection.tsx`, wired through
+  `crater_detections` in `services/api.ts` and `WorkspaceData.craterDetections` in `types.ts`.
+- **Real bug found and fixed during manual verification, not a data/wiring bug**: initial user
+  report of "nothing changed" when toggling the overlay traced (via a temporary on-screen debug
+  readout of computed screen coordinates, since this environment had no browser devtools access)
+  to `homeFillsViewer: true` cropping a tall 1200x847px NAC frame to a 380px-tall pane at the
+  default zoom -- detections near the top/bottom of the real image were computed correctly but
+  fell outside the visible crop (e.g. sy=-173px, sy=484px against a 0-380px visible window).
+  Confirmed by having the user zoom out; markers appeared exactly as expected. Not a frontend bug.
+- **Real, remaining honest limitation surfaced by the user during testing**: even at the 0.02
+  floor, the model does not mark every crater visible to the eye in a given frame -- this is the
+  same uneven-generalization ceiling documented in part 9 (2/27 real images >=100 detections at
+  0.15), not something the confidence slider can fully close. Reported to the user as-is rather
+  than implying the slider is a fix for the model's real accuracy ceiling.
+
 ## Notes / deviations
 - LoFTR (deep matcher) requires torch+kornia (~GBs). Wired behind a try/import with automatic fallback to classical if unavailable, so the system never breaks if the ML stack isn't installed. Documented in README with install instructions to enable it.

@@ -135,6 +135,19 @@ export interface RunResultOk {
   // coverage (confirmed against real footprint geometry), so there is
   // currently no Layer B (real PSR ground truth) to cross-reference against.
   shadow_analysis?: ShadowAnalysis;
+  // Real YOLOv8 crater-detector output (backend/pipeline/crater_detector.py),
+  // run against the SAME processed image files match_points.json's src_x/
+  // src_y and ref_x/ref_y are already in -- no coordinate rescale needed on
+  // this side, unlike the catalog-crater overlay above. Distinct from that
+  // catalog overlay: these are model detections on THIS pair's own pixels,
+  // not a lookup against a pre-published crater catalog, and only exist for
+  // images the model was actually run on (every uploaded pair, not just the
+  // 4 real Chandrayaan-2 frames with known geometry). `error` is set (non-null)
+  // if detection failed for this image -- reported as-is, not hidden.
+  crater_detections?: {
+    src: { craters: { cx: number; cy: number; radius_px: number; confidence: number }[]; count: number; error: string | null };
+    ref: { craters: { cx: number; cy: number; radius_px: number; confidence: number }[]; count: number; error: string | null };
+  };
   elapsed_seconds: number;
   src_path?: string;
   ref_path?: string;

@@ -179,12 +179,27 @@ def match_auto(src_u8: np.ndarray, ref_u8: np.ndarray, inlier_ratio_fn,
     """Runs classical (SIFT) and, if available, deep (LoFTR); picks whichever
     yields the higher post-RANSAC inlier ratio. `inlier_ratio_fn(MatchResult)
     -> float` is supplied by the caller (geometry stage) to avoid a circular
-    import and to keep this module matcher-only."""
-    candidates = {}
-    classical = match_classical(src_u8, ref_u8, "sift", src_hash=src_hash, ref_hash=ref_hash)
-    candidates["classical_sift"] = (classical, inlier_ratio_fn(classical))
+    import and to keep this module matcher-only.
 
-    deep = match_deep_loftr(src_u8, ref_u8)
+    The two candidates are independent (deep_loftr touches no shared state;
+    classical's on-disk feature cache is only ever written by the classical
+    call itself, never contended) so they run concurrently in a thread pool
+    -- both numpy/opencv and torch release the GIL during their real compute,
+    so this is a genuine wall-clock win, not just a reshuffle, cutting
+    "auto" mode's cost from sequential-both to whichever candidate is
+    slower. Found necessary live: the invariance sweep (18 variants, every
+    one calling match_auto) was taking far longer than its own timing
+    estimate before this fix -- see TASKS.md."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    candidates = {}
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        classical_future = pool.submit(match_classical, src_u8, ref_u8, "sift", src_hash=src_hash, ref_hash=ref_hash)
+        deep_future = pool.submit(match_deep_loftr, src_u8, ref_u8)
+        classical = classical_future.result()
+        deep = deep_future.result()
+
+    candidates["classical_sift"] = (classical, inlier_ratio_fn(classical))
     if deep is not None and len(deep.src_pts) >= 4:
         candidates["deep_loftr"] = (deep, inlier_ratio_fn(deep))
 

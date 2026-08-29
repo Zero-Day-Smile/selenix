@@ -26,7 +26,7 @@ import time
 import cv2
 import numpy as np
 
-from backend.pipeline import ancillary_readers, ingestion, relighting, run_pipeline as rp, synthetic_invariance as si
+from backend.pipeline import ancillary_readers, ingestion, run_pipeline as rp, synthetic_invariance as si
 
 CH2_DIR = "backend/data/real/chandrayaan2"
 NAC_DIR = "backend/data/real/lro_nac"
@@ -70,50 +70,13 @@ def load_source(source_id: str, kind: str):
     return {"gray": gray, "sun": sun, "gsd_info": gsd_info, "preview_path": preview_path}
 
 
-def make_variant(gray: np.ndarray, sun: dict | None, sun_delta: float, scale: float, rotation_deg: float):
-    """Returns (image, H_gt_3x3, applied_new_elevation_or_None)."""
-    if sun_delta != 0:
-        assert sun is not None, "sun_delta != 0 requested for a source with no real sun-angle telemetry"
-        new_el = max(2.0, sun["elevation"] - abs(sun_delta))
-        shaded = relighting.relight(gray, sun["elevation"], sun["azimuth"], new_el, sun["azimuth"])
-    else:
-        shaded = gray
-        new_el = sun["elevation"] if sun else None
-
-    if rotation_deg == 0:
-        warped = si.lanczos_resize(shaded, scale)
-        H_gt = np.array([[scale, 0, 0], [0, scale, 0], [0, 0, 1]], dtype=np.float64)
-    else:
-        warped, H_gt = si.warp_scale_rotate(shaded, scale=scale, angle_deg=rotation_deg)
-    return warped, H_gt, new_el
-
-
-def decompose_h(H) -> dict:
-    H = np.array(H, dtype=np.float64)
-    a, b = H[0, 0], H[1, 0]
-    return {"rotation_deg": math.degrees(math.atan2(b, a)), "scale": math.hypot(a, b),
-            "tx": H[0, 2], "ty": H[1, 2]}
-
-
-def corner_reprojection_error_px(H_est, H_gt, src_shape) -> dict:
-    h, w = src_shape[:2]
-    corners = np.array([[0, 0], [w, 0], [0, h], [w, h]], dtype=np.float64)
-
-    def project(H, pts):
-        H = np.array(H, dtype=np.float64)
-        pts_h = np.hstack([pts, np.ones((4, 1))])
-        proj = (H @ pts_h.T).T
-        return proj[:, :2] / proj[:, [2]]
-
-    p_est = project(H_est, corners)
-    p_gt = project(H_gt, corners)
-    dists = np.linalg.norm(p_est - p_gt, axis=1)
-    return {"mean_px": float(dists.mean()), "max_px": float(dists.max()), "per_corner_px": dists.tolist()}
-
-
-def angular_diff_deg(a: float, b: float) -> float:
-    d = (a - b + 180.0) % 360.0 - 180.0
-    return abs(d)
+# Variant generation + true-error helpers now live in synthetic_invariance.py
+# (shared with the live per-pair sweep, backend/pipeline/live_invariance.py) --
+# thin aliases kept here so the rest of this script doesn't need renaming.
+make_variant = si.make_variant
+decompose_h = si.decompose_h
+corner_reprojection_error_px = si.corner_reprojection_error_px
+angular_diff_deg = si.angular_diff_deg
 
 
 def run_one_pair(source_id: str, variant_name: str, src_gray: np.ndarray, ref_gray: np.ndarray,

@@ -34,6 +34,15 @@ export interface WorkspaceData {
   refShadowOverlayUrl: string | null;
   shadowAnalysis: ShadowAnalysis | null;
 
+  // Real YOLOv8 crater detections (backend/pipeline/crater_detector.py),
+  // in the SAME processed-image pixel space as matchPoints below -- distinct
+  // from the catalog-crater lookup (CraterPinOverlay), which only covers the
+  // 4 real Chandrayaan-2 frames with known geometry. This runs on every pair.
+  craterDetections: {
+    src: { cx: number; cy: number; radius_px: number; confidence: number }[];
+    ref: { cx: number; cy: number; radius_px: number; confidence: number }[];
+  } | null;
+
   // raw match points (all matches, inlier + outlier), in processed-image pixel space
   matchPoints: MatchPoint[];
 
@@ -125,6 +134,7 @@ export const emptyWorkspaceData = (): WorkspaceData => ({
   srcShadowOverlayUrl: null,
   refShadowOverlayUrl: null,
   shadowAnalysis: null,
+  craterDetections: null,
   matchPointsCsvUrl: null,
   metricsJsonUrl: null,
   matchPoints: [],

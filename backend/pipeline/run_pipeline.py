@@ -84,6 +84,40 @@ def _save_ssim_heatmap(ref_u8: np.ndarray, warped_u8: np.ndarray, H: np.ndarray,
             "data_json_path": data_path}
 
 
+def _detect_craters_safe(image_path: str) -> dict:
+    """Real YOLOv8 crater detection (backend/pipeline/crater_detector.py),
+    run against the SAME processed image file (src_processed.png /
+    ref_processed.png) whose pixel space match_points.json is already in --
+    so detections need no coordinate transform to overlay on the frontend.
+    Fails soft: this is Step 7 of the crater-detector task, wired in
+    unconditionally regardless of the model's real, uneven generalization
+    (see TASKS.md) -- a detector error must not break registration.
+
+    Runs at a real, low confidence floor (0.02) rather than the previously
+    hardcoded 0.15 -- NMS/scoring cost is identical either way (the
+    threshold only filters the model's own already-computed scores), and
+    this project's own measured data shows the "right" threshold is
+    genuinely image-dependent (one real frame needed ~0.01 to surface
+    anything, another was already dense at 0.15 -- see TASKS.md). Returning
+    the lower-confidence candidates lets the frontend's own threshold
+    slider reveal them on request instead of us silently picking one
+    threshold that's wrong for most images."""
+    try:
+        from . import crater_detector
+        dets = crater_detector.detect_craters(image_path, conf=0.02, craters_only=True)
+        return {
+            "craters": [
+                {"cx": round(d.cx, 2), "cy": round(d.cy, 2),
+                 "radius_px": round(d.radius_px, 2), "confidence": round(d.confidence, 4)}
+                for d in dets
+            ],
+            "count": len(dets),
+            "error": None,
+        }
+    except Exception as exc:  # noqa: BLE001 -- real failure reported, not swallowed silently
+        return {"craters": [], "count": 0, "error": str(exc)}
+
+
 def _sensor_from_path(path: str) -> str:
     name = os.path.basename(path).lower()
     for key in ("ohrc", "tmc", "iirs", "nac"):
@@ -248,8 +282,13 @@ def run_registration(src_path: str, ref_path: str, out_dir: str,
         registered_tps_path = os.path.join(out_dir, "registered_tps.png")
         cv2.imwrite(registered_tps_path, warp_tps_res.warped)
 
-    cv2.imwrite(os.path.join(out_dir, "src_processed.png"), src_proc)
-    cv2.imwrite(os.path.join(out_dir, "ref_processed.png"), ref_proc)
+    src_processed_path = os.path.join(out_dir, "src_processed.png")
+    ref_processed_path = os.path.join(out_dir, "ref_processed.png")
+    cv2.imwrite(src_processed_path, src_proc)
+    cv2.imwrite(ref_processed_path, ref_proc)
+
+    src_craters = _detect_craters_safe(src_processed_path)
+    ref_craters = _detect_craters_safe(ref_processed_path)
 
     # Layer A of the shadow/PSR feature: transient shadow visible AT THE
     # MOMENT OF CAPTURE only -- never "permanent," see shadow.py's docstring.
@@ -344,6 +383,7 @@ def run_registration(src_path: str, ref_path: str, out_dir: str,
         "shadow_analysis": shadow_analysis,
         "rotation_consistency": rotation_consistency,
         "homography_quality": homography_quality,
+        "crater_detections": {"src": src_craters, "ref": ref_craters},
         "ssim": ssim_stats,
         "validation": validation,
         "elapsed_seconds": round(elapsed, 3),
@@ -503,8 +543,13 @@ def run_registration_manual_seed(src_path: str, ref_path: str, out_dir: str,
     if warp_tps_res is not None:
         registered_tps_path = os.path.join(out_dir, "registered_tps.png")
         cv2.imwrite(registered_tps_path, warp_tps_res.warped)
-    cv2.imwrite(os.path.join(out_dir, "src_processed.png"), src_proc)
-    cv2.imwrite(os.path.join(out_dir, "ref_processed.png"), ref_proc)
+    src_processed_path = os.path.join(out_dir, "src_processed.png")
+    ref_processed_path = os.path.join(out_dir, "ref_processed.png")
+    cv2.imwrite(src_processed_path, src_proc)
+    cv2.imwrite(ref_processed_path, ref_proc)
+
+    src_craters = _detect_craters_safe(src_processed_path)
+    ref_craters = _detect_craters_safe(ref_processed_path)
 
     inlier_pos = {int(idx): k for k, idx in enumerate(np.where(geo.inlier_mask)[0])}
     reproj_errors = metrics.per_point_reprojection_error(src_pts, ref_pts, geo.H)
@@ -557,6 +602,7 @@ def run_registration_manual_seed(src_path: str, ref_path: str, out_dir: str,
         },
         "rotation_consistency": rotation_consistency,
         "homography_quality": homography_quality,
+        "crater_detections": {"src": src_craters, "ref": ref_craters},
         "ssim": ssim_stats,
         "validation": validation,
         "elapsed_seconds": round(elapsed, 3),

@@ -38,6 +38,8 @@ regression seen at a real-world-representative 6x scale ratio).
 """
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+
 import cv2
 import numpy as np
 from skimage.registration import phase_cross_correlation
@@ -73,39 +75,57 @@ def refine_points_phase_correlation(src_u8: np.ndarray, ref_u8: np.ndarray,
     refined_src = src_pts.copy()
     half = patch // 2
 
-    for i, rp in enumerate(ref_pts):
+    def _refine_one(i_rp):
+        """Identical per-point math to before -- only the execution schedule
+        changed. Each point's phase correlation is fully independent of
+        every other point's (separate patches, no shared mutable state
+        except the read-only warped_src/ref_u8 arrays), so this parallelizes
+        safely; skimage/numpy release the GIL during the actual FFT-heavy
+        compute, so a thread pool gives a genuine wall-clock win, not just
+        a reshuffle. Found necessary live: synthetic same-source pairs (by
+        construction, for exact ground truth) routinely produce 1000+
+        inliers -- far more than the ~5-50 typical of a real cross-sensor
+        pair this loop was tuned against -- and the sequential loop's cost
+        scales with inlier count, turning a normally-fast stage into a
+        60-100s bottleneck. See TASKS.md."""
+        i, rp = i_rp
         rx, ry = rp
         if not (half <= rx < w_r - half and half <= ry < h_r - half):
-            stats["skipped_out_of_bounds"] += 1
-            continue
+            return i, "skipped_out_of_bounds", None
         ref_patch = ref_u8[int(ry) - half:int(ry) + half, int(rx) - half:int(rx) + half]
         warped_patch = warped_src[int(ry) - half:int(ry) + half, int(rx) - half:int(rx) + half]
         if ref_patch.shape != warped_patch.shape or ref_patch.size == 0:
-            stats["skipped_featureless"] += 1
-            continue
+            return i, "skipped_featureless", None
         if warped_patch.std() < 1e-3 or ref_patch.std() < 1e-3:
-            stats["skipped_featureless"] += 1
-            continue
+            return i, "skipped_featureless", None
 
-        stats["attempted"] += 1
         try:
             shift, error, _diffphase = phase_cross_correlation(
                 ref_patch.astype(np.float32), warped_patch.astype(np.float32),
                 upsample_factor=upsample_factor)
         except Exception:
-            continue
+            return i, "attempted_only", None
 
         if error is not None and error > error_thresh:
-            stats["skipped_low_confidence"] += 1
-            continue
-
+            return i, "skipped_low_confidence", None
         if np.hypot(shift[0], shift[1]) > half:
-            stats["skipped_implausible_shift"] += 1
-            continue
+            return i, "skipped_implausible_shift", None
 
         refined_ref_pos = np.array([[rx + shift[1], ry + shift[0]]], dtype=np.float32)
         mapped = cv2.perspectiveTransform(refined_ref_pos.reshape(1, 1, 2), H_inv).reshape(2)
-        refined_src[i] = mapped
-        stats["accepted"] += 1
+        return i, "accepted", mapped
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        for i, outcome, mapped in pool.map(_refine_one, enumerate(ref_pts)):
+            if outcome == "attempted_only":
+                stats["attempted"] += 1
+                continue
+            if outcome != "skipped_out_of_bounds" and outcome != "skipped_featureless":
+                stats["attempted"] += 1
+            if outcome == "accepted":
+                refined_src[i] = mapped
+                stats["accepted"] += 1
+            else:
+                stats[outcome] += 1
 
     return refined_src, stats

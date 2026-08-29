@@ -136,6 +136,7 @@ async def api_run(
     if "shadow_analysis" in result:
         result["shadow_analysis"]["src"]["sun_angle_context"] = _sun_angle_context(src_path)
         result["shadow_analysis"]["ref"]["sun_angle_context"] = _sun_angle_context(ref_path)
+
     return result
 
 

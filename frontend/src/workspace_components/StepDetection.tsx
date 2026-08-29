@@ -4,6 +4,7 @@ import type { WorkspaceData } from './types';
 import { useOsdViewer } from './useOsdViewer';
 import OsdPointOverlay from './OsdPointOverlay';
 import CraterPinOverlay from './CraterPinOverlay';
+import DetectedCraterOverlay from './DetectedCraterOverlay';
 import CorrespondenceCanvas, { type CorrespondencePoint } from './CorrespondenceCanvas';
 import { chandrayaan2ImageIdForFilename, fetchChandrayaan2Craters, type Chandrayaan2CratersResponse } from '../services/api';
 import { useShadowOverlayLayer } from './useShadowOverlayLayer';
@@ -41,6 +42,26 @@ export default function StepDetection({ data }: { data: WorkspaceData }) {
   // Off by default since this panel is already dense with match/crater
   // content -- an explicit, deliberate toggle rather than always-on.
   const [showShadow, setShowShadow] = useState(false);
+  // Off by default for the same reason as showShadow -- this panel is
+  // already dense; an explicit toggle rather than always-on.
+  const [showDetectedCraters, setShowDetectedCraters] = useState(false);
+  // The backend returns real detections down to confidence 0.02 (see
+  // run_pipeline.py::_detect_craters_safe) rather than a single hardcoded
+  // cutoff -- this project's own measured data shows the "right" threshold
+  // is genuinely image-dependent (one real frame needed ~0.01 to surface
+  // anything, another was already dense at 0.15). 0.15 as the default
+  // matches this model's originally-calibrated value; the slider lets a
+  // user reveal the model's lower-confidence candidates on request instead
+  // of us silently guessing one threshold that's wrong for most images.
+  const [craterConfThreshold, setCraterConfThreshold] = useState(0.15);
+  const craterDetectionsFiltered = useMemo(() => {
+    if (!data.craterDetections) return null;
+    return {
+      src: data.craterDetections.src.filter((c) => c.confidence >= craterConfThreshold),
+      ref: data.craterDetections.ref.filter((c) => c.confidence >= craterConfThreshold),
+    };
+  }, [data.craterDetections, craterConfThreshold]);
+  const hasDetectedCraters = !!(craterDetectionsFiltered && (craterDetectionsFiltered.src.length > 0 || craterDetectionsFiltered.ref.length > 0));
 
   const srcImg = data.srcProcessedUrl || data.sourceUrl;
   const refImg = data.refProcessedUrl || data.refUrl;
@@ -159,9 +180,38 @@ export default function StepDetection({ data }: { data: WorkspaceData }) {
                 Shadow (at capture)
               </button>
             )}
+            {data.craterDetections && mode === 'zoom' && (
+              <button
+                onClick={() => setShowDetectedCraters((s) => !s)}
+                className={`px-3 py-1.5 text-[10px] font-mono uppercase tracking-wide border rounded-sm ${
+                  showDetectedCraters ? 'bg-cyan-600 text-white border-cyan-600' : 'bg-white text-gray-500 border-gray-300 hover:border-black'
+                }`}
+              >
+                Detected craters (YOLOv8)
+              </button>
+            )}
             <ModeToggle mode={mode} setMode={setMode} />
           </div>
         </div>
+
+        {showDetectedCraters && data.craterDetections && mode === 'zoom' && (
+          <div className="flex items-center gap-2 mb-4 -mt-2">
+            <span className="text-[9px] text-gray-500 uppercase tracking-wide whitespace-nowrap">Min confidence</span>
+            <input
+              type="range"
+              min={0.02}
+              max={0.9}
+              step={0.01}
+              value={craterConfThreshold}
+              onChange={(e) => setCraterConfThreshold(parseFloat(e.target.value))}
+              className="w-40 accent-cyan-600"
+            />
+            <span className="text-[9px] font-mono text-cyan-700 w-10">{craterConfThreshold.toFixed(2)}</span>
+            <span className="text-[9px] text-gray-400">
+              Lower reveals more of the model's real (lower-confidence) detections — also more false positives.
+            </span>
+          </div>
+        )}
 
         {mode === 'lines' && srcImg && refImg && srcShape && refShape ? (
           <CorrespondenceCanvas srcUrl={srcImg} refUrl={refImg} srcShape={srcShape} refShape={refShape} points={linePoints} capLabel="match" />
@@ -181,6 +231,9 @@ export default function StepDetection({ data }: { data: WorkspaceData }) {
                     regions={data.shadowAnalysis.src.regions}
                     sunAngleContext={data.shadowAnalysis.src.sun_angle_context}
                   />
+                )}
+                {showDetectedCraters && craterDetectionsFiltered && (
+                  <DetectedCraterOverlay viewer={srcViewer} craters={craterDetectionsFiltered.src} />
                 )}
               </div>
               {srcCraterImageId && srcCraterResp && srcCraterResp.count === 0 && (
@@ -204,6 +257,9 @@ export default function StepDetection({ data }: { data: WorkspaceData }) {
                     sunAngleContext={data.shadowAnalysis.ref.sun_angle_context}
                   />
                 )}
+                {showDetectedCraters && craterDetectionsFiltered && (
+                  <DetectedCraterOverlay viewer={refViewer} craters={craterDetectionsFiltered.ref} />
+                )}
               </div>
               {refCraterImageId && refCraterResp && refCraterResp.count === 0 && (
                 <p className="text-[9px] text-purple-600">
@@ -226,6 +282,18 @@ export default function StepDetection({ data }: { data: WorkspaceData }) {
           <p className="text-[10px] text-orange-600 mt-2 flex items-center gap-1.5">
             <span className="inline-block w-3 h-3 rounded-full border-2 border-orange-500" /> Shadow regions (at time
             of capture) — click a marker for details, including why this is not a permanent shadow (PSR).
+          </p>
+        )}
+
+        {showDetectedCraters && data.craterDetections && (
+          <p className="text-[10px] text-cyan-600 mt-2 flex items-center gap-1.5">
+            <span className="inline-block w-3 h-3 rounded-full border-2 border-dashed border-cyan-500" /> YOLOv8
+            model detections on this pair's own pixels (hover/click for confidence and radius) — distinct from the
+            purple catalog markers above, which are a pre-published crater catalog lookup available only for the 4
+            real Chandrayaan-2 frames. This model's real detection density varies a lot from image to image; a run
+            with few or no markers here is a real, reported result, not a bug.
+            {!hasDetectedCraters && ' No detections above the confidence threshold for this pair.'}
+            {hasDetectedCraters && ' Detections are spread across the full image — zoom out or use the home button if a pane\'s default crop is hiding some of them.'}
           </p>
         )}
 

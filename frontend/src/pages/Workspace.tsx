@@ -136,6 +136,11 @@ export default function Workspace({ onNavigate }: { onNavigate: (page: Page) => 
       // pixel statistics on the actual uploaded image), so this stays null
       // in simulation mode rather than showing made-up shadow content.
       shadowAnalysis: result.shadow_analysis ?? null,
+      // Same rule as shadowAnalysis above: only ever set from a real backend
+      // result. Simulation mode doesn't run the real YOLOv8 model.
+      craterDetections: result.crater_detections
+        ? { src: result.crater_detections.src.craters, ref: result.crater_detections.ref.craters }
+        : null,
       matchPointsCsvUrl: runDirId ? outputUrl(runDirId, 'match_points.csv') : null,
       metricsJsonUrl: runDirId ? outputUrl(runDirId, 'metrics.json') : null,
       matchPoints,
