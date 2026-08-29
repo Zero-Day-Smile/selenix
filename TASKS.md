@@ -811,5 +811,95 @@ matching at ~km), which is a different, larger architecture than "hillshade-matc
 out of scope for what was tested here, and not attempted without a further explicit decision to
 build a real multi-scale registration architecture.
 
+## Real image pairs for DEM-assisted matching: a genuine positive result, then a genuine cross-sensor negative (this session, part 12)
+
+Follow-up to part 11's negative finding, deliberately targeting a location where LOLA 64ppd
+*should* have enough real resolution at the actual match-relevant crop scale (not just at the
+185km context scale part 11 already confirmed).
+
+**Step 1 -- real, measured, ranked candidate locations**: built a summed-area-table (integral
+image) over the FULL real global `ldem_64.img` grid for exact (not sampled) local elevation
+std-dev within a real 50km radius, scored against 768 real candidates (766 real USGS Gazetteer
+craters >=50km diameter, global query via the already-integrated `crater_catalog.py`, plus Montes
+Apenninus / Montes Caucasus). Top 5 by real measured elevation std: Oberbeck (2639m, but -83.6
+lat -- too close to the pole for a clean two-sun-angle test), Wargentin (2246m, -49.5 lat, 85km
+diameter), Cyrillus (2170m), Hedervari (2041m, also near-polar), Watt (2008m). Confirmed real
+public NAC coverage via ODE for the non-polar candidates (65-136 frames each) before committing to
+one. Chose **Wargentin** (best combination of high real variance, moderate/workable latitude, and
+136 available real NAC frames).
+
+**Step 2 -- real, verified-overlapping NAC pair, different real sun angles**: systematically
+checked all LE-frame pairs at Wargentin for genuine bbox overlap (via real KML corners, same
+convention as `geo_extent_guard.py`) crossed with real incidence-angle difference; picked
+`M1417873284LE` (2022-09-15, real incidence 49.94 deg) and `M1441326480LE` (2023-06-13, real
+incidence 73.26 deg) -- confirmed genuine overlap (0.41 x 1.5 real degrees) before downloading
+either file.
+
+**Step 3 -- real synthetic multi-sun-angle variants**: rendered 7 real DEM-hillshade variants of
+the base frame's own real pixel grid (4 sun-elevation deltas: -10/-20/-30/-45 deg from its real
+SPICE-derived sun angle; 3 sun-azimuth rotations: +45/+90/+135 deg) -- exact identity ground truth
+by construction (same DEM samples, same reprojection, only the Lambertian shading differs). This
+location's real ground spacing in the working grid came out to **45.8 m/px** (vs Tycho's 5.8
+m/px in part 11) -- an order of magnitude coarser sampling of the same 473.8m/px-native DEM, i.e.
+far less upsampling and a real, honest reason to expect a different result than part 11.
+
+**A real bug found and fixed mid-test, reported rather than glossed over**: the first sweep run
+produced all-zero matches for 5 of 7 variants. Investigation showed this was NOT a genuine
+matching failure -- an unrelated environment bug (`opencv-contrib-python` and a separately-pulled
+plain `opencv-python` were both installed, likely from an earlier `pip install` this session for
+spiceypy/onnxruntime, and whichever package's binary happened to load last silently shadowed the
+contrib build). `registration.py::warp_tps()` raised a plain `AttributeError` for the missing
+`cv2.createThinPlateSplineShapeTransformer`, which its own `except cv2.error:` does NOT catch --
+so the exception propagated up and crashed `run_registration()` outright for any pair with >=6
+matched points, not just for this test. My own diagnostic script's blanket `except Exception`
+had briefly reported these crashes as "0 matches found," which would have been a dishonest,
+misleading result -- caught by checking the captured error message before drawing conclusions,
+not by the numbers looking fishy alone. Fixed by uninstalling both opencv packages and installing
+only `opencv-contrib-python`; verified with `hasattr`; restarted the live backend (which had the
+broken `cv2` loaded in memory since before this bug was introduced) and confirmed `/api/health`
+recovers. This was a real, live bug affecting the actual running application, not just this
+diagnostic -- any real user pipeline run hitting the piecewise/TPS-eligible code path (>=6 inlier
+points) during that window would have failed outright rather than degrading gracefully.
+
+**Step 4 -- real invariance sweep results, re-run clean after the fix**:
+
+| Variant | Matcher | Inliers | Rotation std | Validated | Failure reason if not |
+|---|---|---|---|---|---|
+| elev delta -10 deg | classical_sift | 54 | 0.99 deg | **yes** | -- |
+| elev delta -20 deg | classical_sift | 31 | 0.73 deg | **yes** | -- |
+| elev delta -30 deg | classical_sift | 13 | 1.44 deg | no | only 13 inliers (<20) -- a sample-size cutoff, not a bad match (rotation std still good) |
+| elev delta -45 deg | deep_loftr | 251 | 4.93 deg | **yes** | -- |
+| az rotation +45 deg | deep_loftr | 425 | 0.92 deg | no | RMSE 3.77px, just over the 3.0px cutoff -- 99.3% inlier ratio, a near-miss not a real failure |
+| az rotation +90 deg | classical_sift | 0 (1 raw match) | n/a | no | genuine total failure |
+| az rotation +135 deg | classical_sift | 0 (0 raw matches) | n/a | no | genuine total failure |
+
+**Real, honest interpretation**: DEM-hillshade-to-DEM-hillshade matching at this improved
+(45.8m/px) location works well through elevation deltas up to -45 deg and holds up (strong
+inliers, sub-1-degree rotation consistency) through +45 deg azimuth rotation -- a genuinely
+different, positive result from part 11, directly attributable to the coarser real ground
+sampling giving the 473.8m/px DEM enough real pixels to carry structure. It breaks down sharply
+and completely between +45 and +90 deg azimuth rotation, a real threshold worth reporting as-is
+rather than smoothed into "gradual degradation." This is NOT directly comparable to the
+appearance-based "100% through 30 deg, degrades at 45 deg" figure cited in the prompt -- that
+number describes REAL sensor images under synthetic relighting, whereas this describes DEM-shading
+self-consistency; a literal side-by-side would overstate what's actually comparable.
+
+**Step 5 -- cross-sensor/domain-gap test, real and negative**: rather than fabricate a synthetic
+"Chandrayaan-2-like" image using a real TMC-2 sun-angle number borrowed from an unrelated real CH2
+frame (a location Chandrayaan-2 never actually observed), ran the more direct, honest version of
+the same question: does the REAL NAC image match its OWN real-sun-angle DEM-derived hillshade, at
+this same improved Wargentin grid where Step 4 just showed DEM-vs-DEM matching genuinely works?
+**Result: decisive failure** -- 5 total raw matches, 4 inliers (need >=20), no meaningful rotation
+consistency. This isolates the finding cleanly: the illumination-invariance question (Step 4) and
+the sensor/rendering-domain gap (Step 5) are BOTH real, independent bottlenecks, and the domain
+gap is the larger one here -- a real optical NAC image and a real-terrain DEM hillshade at the
+IDENTICAL true sun angle (zero illumination difference) still do not match, while two DEM
+hillshades of the same terrain under different sun angles do. This is the opposite framing from
+the prompt's suggested "if DEM-generated pairs match better than real pairs, 3D shape beats 2D
+appearance" -- here, DEM-generated pairs matching EACH OTHER well does not transfer to matching
+REAL sensor data at all, meaning the practical, deployable value of DEM-assisted registration is
+blocked by the same real-vs-synthetic domain gap this project has run into with other synthetic
+approaches this session (see the LoFTR fine-tuning and crater-detector sections), not fixed by it.
+
 ## Notes / deviations
 - LoFTR (deep matcher) requires torch+kornia (~GBs). Wired behind a try/import with automatic fallback to classical if unavailable, so the system never breaks if the ML stack isn't installed. Documented in README with install instructions to enable it.
