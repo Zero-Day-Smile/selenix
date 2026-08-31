@@ -96,7 +96,7 @@ export interface RunResultOk {
   status: 'ok';
   sensor_type: string;
   matcher_used: string;
-  matcher_selection: (Record<string, number | string> & { chosen?: string }) | null;
+  matcher_selection: Record<string, number> & { chosen?: string } | null;
   geometry_method: string;
   total_matches: number;
   inlier_count: number;
@@ -244,21 +244,33 @@ export async function checkBackendHealth(timeoutMs = 3000): Promise<boolean> {
 }
 
 export async function runRegistration(
-  sourceFile: File | File[],
-  refFile: File | File[],
+  sourceFile: File,
+  refFile: File,
   params: RunParams = {},
-  timeoutMs = 120000
+  // 120s was too tight and a real cause of false "Simulation mode" --
+  // matcher='auto' (the UI default) runs classical SIFT AND deep LoFTR
+  // sequentially; LoFTR's real pretrained model has to be (re)loaded on
+  // the first request after every backend restart (~10s alone) plus real
+  // CPU inference on top of it. The backend was actually finishing fine
+  // and returning 200 -- the client just aborted first and silently
+  // treated a slow-but-working backend as an unreachable one. 600s is
+  // generous enough to cover a cold LoFTR load + full auto-mode run on a
+  // real multi-megapixel image on CPU.
+  timeoutMs = 600000,
+  // Real detached-label PDS3/PDS4 products need their companion binary
+  // (.img/.IMG) uploaded alongside the label (.xml/.lbl) in the SAME
+  // request -- the backend's /api/run already accepts multiple files per
+  // side (list[UploadFile]) for exactly this; appending each companion
+  // under the same 'source'/'reference' field name is how FastAPI/Starlette
+  // expects a list of files from one multipart field.
+  sourceCompanionFiles: File[] = [],
+  refCompanionFiles: File[] = []
 ): Promise<RunResult> {
   const formData = new FormData();
-  const sources = Array.isArray(sourceFile) ? sourceFile : [sourceFile];
-  const refs = Array.isArray(refFile) ? refFile : [refFile];
-
-  for (const f of sources) {
-    formData.append('source', f);
-  }
-  for (const f of refs) {
-    formData.append('reference', f);
-  }
+  formData.append('source', sourceFile);
+  for (const f of sourceCompanionFiles) formData.append('source', f);
+  formData.append('reference', refFile);
+  for (const f of refCompanionFiles) formData.append('reference', f);
   if (params.matcher) formData.append('matcher', params.matcher);
   if (params.illum_mode) formData.append('illum_mode', params.illum_mode);
   if (params.sensor_type) formData.append('sensor_type', params.sensor_type);
@@ -350,6 +362,53 @@ export async function interpretMetrics(callType: 1 | 2 | 3 | 4 | 5, fields: Reco
     if (!r.available) interpretCache.delete(cacheKey);
   });
   return promise;
+}
+
+// ---------------------------------------------------------------------------
+// Real orbital-geometry panel: real Chandrayaan-2/LRO spacecraft position at
+// each image's real acquisition time. See
+// backend/pipeline/orbital_geometry.py's module docstring for the real data
+// sources (verified .spm telemetry + real NAIF SPK kernels -- NOT
+// satellite.js/SGP4/TLE, which don't apply to lunar orbiters at all). Only
+// ever real numbers or an honest available:false, never estimated.
+
+export interface OrbitalPosition {
+  available: boolean;
+  lat?: number;
+  lon?: number;
+  alt_km?: number;
+  source?: string;
+  reason?: string;
+}
+
+export interface OrbitalGeometryResult {
+  ch2: OrbitalPosition;
+  lro: OrbitalPosition;
+  viewing_angle_divergence_deg: number | null;
+  sun_angle_ch2_deg: number | null;
+  sun_angle_lro_deg: number | null;
+  coverage_note: string;
+  target_lat: number | null;
+  target_lon: number | null;
+}
+
+export async function fetchOrbitalGeometry(runId: string): Promise<OrbitalGeometryResult | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/orbital_geometry/${runId}`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+// Real lunar surface imagery (ASU's public Lunaserv WMS, LRO WAC global
+// mosaic) centered on a real lat/lon -- see backend/app/main.py's
+// _fetch_moon_context_image docstring. Just a URL (the <img> tag itself
+// makes the request) rather than a fetch wrapper, same pattern as
+// outputUrl() elsewhere in this file.
+export function moonContextImageUrl(lat: number, lon: number, spanDeg = 2.0): string {
+  return `${API_BASE}/api/moon_context_image?lat=${lat}&lon=${lon}&span_deg=${spanDeg}`;
 }
 
 // ---------------------------------------------------------------------------

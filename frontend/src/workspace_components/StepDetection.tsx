@@ -79,20 +79,17 @@ export default function StepDetection({ data }: { data: WorkspaceData }) {
   useShadowOverlayLayer(refViewer, mode === 'zoom' ? data.refShadowOverlayUrl : null, showShadow ? 0.85 : 0);
   const hasShadowData = !!(data.srcShadowOverlayUrl || data.refShadowOverlayUrl);
 
-  const srcFileName = data.sourceFile.find((f) => f.name.toLowerCase().endsWith('.img') || f.type.startsWith('image/'))?.name || data.sourceFile[0]?.name;
-  const refFileName = data.refFile.find((f) => f.name.toLowerCase().endsWith('.img') || f.type.startsWith('image/'))?.name || data.refFile[0]?.name;
-
   const srcCompareMeta = useMemo(
-    () => metaFromFilename(srcFileName, data.shadowAnalysis?.src.sun_angle_context?.solar_incidence_mean_deg, data.srcGeometry),
-    [srcFileName, data.shadowAnalysis, data.srcGeometry]
+    () => metaFromFilename(data.sourceFile?.name, data.shadowAnalysis?.src.sun_angle_context?.solar_incidence_mean_deg, data.srcGeometry),
+    [data.sourceFile, data.shadowAnalysis, data.srcGeometry]
   );
   const refCompareMeta = useMemo(
-    () => metaFromFilename(refFileName, data.shadowAnalysis?.ref.sun_angle_context?.solar_incidence_mean_deg, data.refGeometry),
-    [refFileName, data.shadowAnalysis, data.refGeometry]
+    () => metaFromFilename(data.refFile?.name, data.shadowAnalysis?.ref.sun_angle_context?.solar_incidence_mean_deg, data.refGeometry),
+    [data.refFile, data.shadowAnalysis, data.refGeometry]
   );
 
-  const { imageId: srcCraterImageId, resp: srcCraterResp } = useChandrayaan2Craters(srcFileName);
-  const { imageId: refCraterImageId, resp: refCraterResp } = useChandrayaan2Craters(refFileName);
+  const { imageId: srcCraterImageId, resp: srcCraterResp } = useChandrayaan2Craters(data.sourceFile?.name);
+  const { imageId: refCraterImageId, resp: refCraterResp } = useChandrayaan2Craters(data.refFile?.name);
 
   // Real catalog crater pixel positions are computed by the backend against
   // the RAW uploaded preview image's dimensions. The pane here displays the

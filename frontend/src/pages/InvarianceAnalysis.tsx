@@ -6,6 +6,7 @@
 // invisible during a live demo. Applies across every pair tested, not a
 // single run's result, so this is its own top-level page rather than
 // something buried inside the Workspace flow.
+import React from 'react';
 import Navbar, { type Page } from '../landing_components/Navbar';
 import { API_BASE } from '../services/api';
 
@@ -41,7 +42,7 @@ const PLOTS: { file: string; title: string; caption: string }[] = [
   },
 ];
 
-export default function InvarianceAnalysis({ onNavigate }: { onNavigate?: (page: Page) => void }) {
+export default function InvarianceAnalysis({ onNavigate }: { onNavigate: (page: Page) => void }) {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar onNavigate={onNavigate} />

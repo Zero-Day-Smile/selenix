@@ -1,5 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useRef } from 'react';
 import Navbar, { type Page } from '../landing_components/Navbar';
 import WorkspaceHeader from '../workspace_components/WorkspaceHeader';
 import StepUpload from '../workspace_components/StepUpload';
@@ -7,6 +6,7 @@ import StepDetection from '../workspace_components/StepDetection';
 import StepRANSAC from '../workspace_components/StepRANSAC';
 import StepRegistration from '../workspace_components/StepRegistration';
 import StepEvaluation from '../workspace_components/StepEvaluation';
+import OrbitalGeometryPanel from '../workspace_components/OrbitalGeometryPanel';
 import MissionStatusBar from '../workspace_components/MissionStatusBar';
 import { useElapsedTimer } from '../workspace_components/useElapsedTimer';
 import { useTheme } from '../workspace_components/useTheme';
@@ -19,6 +19,7 @@ import {
   fetchMatchPoints,
   outputUrl,
   decomposeHomography,
+  isSuccessResult,
   PIPELINE_STAGES,
   type RunParams,
   type RunResultOk,
@@ -26,14 +27,9 @@ import {
 
 const STEPS = ['Upload', 'Detection', 'RANSAC', 'Registration', 'Evaluation'];
 
-function getImageDims(files: File[]): Promise<{ w: number; h: number }> {
+function getImageDims(file: File): Promise<{ w: number; h: number }> {
   return new Promise((resolve) => {
-    const imgFile = files.find((f) => f.type.startsWith('image/') || /\.(png|jpe?g|webp|tiff?|bmp)$/i.test(f.name));
-    if (!imgFile) {
-      resolve({ w: 800, h: 600 });
-      return;
-    }
-    const url = URL.createObjectURL(imgFile);
+    const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
       resolve({ w: img.naturalWidth, h: img.naturalHeight });
@@ -44,112 +40,27 @@ function getImageDims(files: File[]): Promise<{ w: number; h: number }> {
   });
 }
 
-const SESSION_KEY = 'selenix:lastRun';
-
-interface SavedRun {
-  runDirId: string;
-  simulationMode: false;
-  srcShape: [number, number] | null;
-  refShape: [number, number] | null;
-  sourceMetadata: Record<string, any>;
-  refMetadata: Record<string, any>;
-  shadowAnalysis: WorkspaceData['shadowAnalysis'];
-  craterDetections: WorkspaceData['craterDetections'];
-  srcGeometry: WorkspaceData['srcGeometry'];
-  refGeometry: WorkspaceData['refGeometry'];
-  matchPoints: WorkspaceData['matchPoints'];
-  keypointsSource: number;
-  keypointsRef: number;
-  candidateMatches: number;
-  inliers: number;
-  outliers: number;
-  inlierRatio: number;
-  geometryMethod: string;
-  matcherSelection: WorkspaceData['matcherSelection'];
-  homography: number[][];
-  transformParams: WorkspaceData['transformParams'];
-  metrics: WorkspaceData['metrics'];
-  heatmapData: number[][];
-  validation: WorkspaceData['validation'];
-  homographyQuality: WorkspaceData['homographyQuality'];
-  rotationConsistency: WorkspaceData['rotationConsistency'];
-  ssim: WorkspaceData['ssim'];
-  elapsedSeconds: number;
-  matcherUsed: string;
-  sensorType: string;
-  hasRegisteredGlobalUrl: boolean;
-  hasSsimHeatmapUrl: boolean;
-  hasSsimHeatmapDataUrl: boolean;
-  hasSrcShadowOverlayUrl: boolean;
-  hasRefShadowOverlayUrl: boolean;
-}
-
-export default function Workspace({ onNavigate }: { onNavigate?: (page: Page) => void }) {
-  const { stepIndex } = useParams();
-  const navigate = useNavigate();
-  const parsedStep = parseInt(stepIndex || '0', 10);
-  const currentStep = isNaN(parsedStep) ? 0 : Math.min(STEPS.length - 1, Math.max(0, parsedStep));
-  const setCurrentStep = (step: number) => {
-    navigate(`/workspace/step/${step}`);
-  };
+export default function Workspace({ onNavigate }: { onNavigate: (page: Page) => void }) {
+  const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
   const [backendAvailable, setBackendAvailable] = useState<boolean | null>(null);
   const [activeStageIndex, setActiveStageIndex] = useState(-1);
-  const [restorableRun, setRestorableRun] = useState<SavedRun | null>(null);
   const tickerRef = useRef<number | null>(null);
 
   const [data, setData] = useState<WorkspaceData>(emptyWorkspaceData());
 
-  useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem(SESSION_KEY);
-      if (raw) {
-        const saved: SavedRun = JSON.parse(raw);
-        if (saved && !saved.simulationMode && saved.runDirId) {
-          setRestorableRun(saved);
-        }
-      }
-    } catch {
-      // Ignore parsing errors
-    }
-  }, []);
-
-  const handleRestoreRun = () => {
-    if (!restorableRun) return;
-    const runDirId = restorableRun.runDirId;
-    setData((prev) => ({
-      ...prev,
-      ...restorableRun,
-      sourceFile: [],
-      refFile: [],
-      sourceUrl: null,
-      refUrl: null,
-      srcProcessedUrl: outputUrl(runDirId, 'src_processed.png'),
-      refProcessedUrl: outputUrl(runDirId, 'ref_processed.png'),
-      registeredGlobalUrl: restorableRun.hasRegisteredGlobalUrl ? outputUrl(runDirId, 'registered_global.png') : null,
-      ssimHeatmapUrl: restorableRun.hasSsimHeatmapUrl ? outputUrl(runDirId, 'ssim_heatmap.png') : null,
-      ssimHeatmapDataUrl: restorableRun.hasSsimHeatmapDataUrl ? outputUrl(runDirId, 'ssim_heatmap_data.json') : null,
-      srcShadowOverlayUrl: restorableRun.hasSrcShadowOverlayUrl ? outputUrl(runDirId, 'src_shadow_overlay.png') : null,
-      refShadowOverlayUrl: restorableRun.hasRefShadowOverlayUrl ? outputUrl(runDirId, 'ref_shadow_overlay.png') : null,
-      matchPointsCsvUrl: outputUrl(runDirId, 'match_points.csv'),
-      metricsJsonUrl: outputUrl(runDirId, 'metrics.json'),
-    }));
-    setRestorableRun(null);
-  };
-
-  const handleDiscardRun = () => {
-    try {
-      sessionStorage.removeItem(SESSION_KEY);
-    } catch {}
-    setRestorableRun(null);
-  };
-
   const isStepComplete = (step: number): boolean => {
     switch (step) {
       case 0: // Upload
-        return (data.sourceFile.length > 0 && data.refFile.length > 0) || !!data.runDirId;
+        return !!data.sourceFile && !!data.refFile;
       case 1: // Detection
+        // keypointsSource/keypointsRef legitimately report 0 for the deep_loftr
+        // matcher (a dense/transformer matcher with no discrete keypoint-detection
+        // stage the way SIFT has -- 0 is an honest backend value, not a failure).
+        // Gating navigation on it stuck the user on this step forever for any
+        // real pair that lands on LoFTR, which is most of our real Chandrayaan-2/
+        // NAC pairs. candidateMatches > 0 is the actually meaningful signal.
         return data.candidateMatches > 0;
       case 2: // RANSAC
         return data.inliers > 0 && data.inlierRatio > 0;
@@ -168,6 +79,11 @@ export default function Workspace({ onNavigate }: { onNavigate?: (page: Page) =>
     }
   };
 
+  // Drives the "in progress" stage list while a real network call is in
+  // flight. We don't get real granular progress from a single POST, so this
+  // ticks through the named stages up to the second-to-last one and holds
+  // there until the response actually arrives — it never claims completion
+  // that hasn't happened.
   const startOptimisticTicker = () => {
     let i = 0;
     setActiveStageIndex(0);
@@ -193,7 +109,7 @@ export default function Workspace({ onNavigate }: { onNavigate?: (page: Page) =>
     simulationMode: boolean,
     runDirId: string | null,
     srcDims: { w: number; h: number },
-    _refDims: { w: number; h: number }
+    refDims: { w: number; h: number }
   ) => {
     const { rotationDeg, scale, tx, ty } = decomposeHomography(result.homography);
     const gridN = 4;
@@ -204,79 +120,6 @@ export default function Workspace({ onNavigate }: { onNavigate?: (page: Page) =>
       const gx = Math.min(gridN - 1, Math.max(0, Math.floor((p.src_x / srcW) * gridN)));
       const gy = Math.min(gridN - 1, Math.max(0, Math.floor((p.src_y / srcH) * gridN)));
       heatmapData[gy][gx] += 1;
-    }
-
-    if (!simulationMode && runDirId) {
-      try {
-        const saved: SavedRun = {
-          runDirId,
-          simulationMode: false,
-          srcShape: result.src_shape || null,
-          refShape: result.ref_shape || null,
-          sourceMetadata: data.sourceMetadata,
-          refMetadata: data.refMetadata,
-          shadowAnalysis: result.shadow_analysis ?? null,
-          craterDetections: result.crater_detections
-            ? { src: result.crater_detections.src.craters, ref: result.crater_detections.ref.craters }
-            : null,
-          srcGeometry: result.ingestion?.src_geometry ?? null,
-          refGeometry: result.ingestion?.ref_geometry ?? null,
-          matchPoints,
-          keypointsSource: result.src_keypoints || 0,
-          keypointsRef: result.ref_keypoints || 0,
-          candidateMatches: result.total_matches || 0,
-          inliers: result.inlier_count || 0,
-          outliers: (result.total_matches || 0) - (result.inlier_count || 0),
-          inlierRatio: result.inlier_ratio || 0,
-          geometryMethod: result.geometry_method || 'MAGSAC++',
-          matcherSelection: result.matcher_selection || null,
-          homography: result.homography || data.homography,
-          transformParams: { rotation: rotationDeg, scale, tx, ty, residualRMS: result.rmse_post_refinement || 0 },
-          metrics: {
-            rmse: result.rmse_post_refinement || 0,
-            inlierCount: result.inlier_count || 0,
-            inlierRatio: result.inlier_ratio || 0,
-            meanReprojectionError: result.rmse_pre_refinement || 0,
-            uniformityScore: result.uniformity_score_selected || 0,
-            uniformityScoreAllInliers: result.uniformity_score_all_inliers || 0,
-            nUniformSelected: result.n_uniform_selected || 0,
-            rmseImprovementPct: result.rmse_improvement_pct || 0,
-            scaleFactorFromHomography: result.estimated_scale_factor_from_homography || scale,
-            scaleFactorDimensionBased: result.estimated_scale_factor_dimension_based || scale,
-          },
-          heatmapData,
-          validation: result.validation || { validated: false, label: '', reasons: [] },
-          homographyQuality: result.homography_quality
-            ? {
-                conditionRatio: result.homography_quality.condition_ratio,
-                degenerate: result.homography_quality.degenerate,
-                threshold: result.homography_quality.threshold,
-                scaleDisagreementRatio: result.homography_quality.scale_disagreement_ratio ?? null,
-                scaleDisagreementThreshold: result.homography_quality.scale_disagreement_threshold ?? null,
-                scaleDisagreementFlagged: result.homography_quality.scale_disagreement_flagged ?? false,
-              }
-            : null,
-          rotationConsistency: result.rotation_consistency
-            ? { stdDeg: result.rotation_consistency.std_deg, nPairs: result.rotation_consistency.n_pairs }
-            : null,
-          ssim: {
-            mean: result.ssim?.mean_ssim || 0,
-            validRegion: result.ssim?.mean_ssim_valid_region || 0,
-            validFraction: result.ssim?.valid_pixel_fraction || 0,
-          },
-          elapsedSeconds: result.elapsed_seconds || 0,
-          matcherUsed: result.matcher_used || '',
-          sensorType: result.sensor_type || '',
-          hasRegisteredGlobalUrl: !!result.warps_computed?.global_homography,
-          hasSsimHeatmapUrl: !!result.warps_computed?.ssim_heatmap,
-          hasSsimHeatmapDataUrl: !!result.warps_computed?.ssim_data,
-          hasSrcShadowOverlayUrl: !!result.warps_computed?.src_shadow_overlay,
-          hasRefShadowOverlayUrl: !!result.warps_computed?.ref_shadow_overlay,
-        };
-        sessionStorage.setItem(SESSION_KEY, JSON.stringify(saved));
-      } catch (err) {
-        console.warn('Could not persist run to sessionStorage:', err);
-      }
     }
 
     setData((prev) => ({
@@ -293,7 +136,13 @@ export default function Workspace({ onNavigate }: { onNavigate?: (page: Page) =>
       ssimHeatmapDataUrl: runDirId && result.warps_computed?.ssim_data ? outputUrl(runDirId, 'ssim_heatmap_data.json') : null,
       srcShadowOverlayUrl: runDirId && result.warps_computed?.src_shadow_overlay ? outputUrl(runDirId, 'src_shadow_overlay.png') : null,
       refShadowOverlayUrl: runDirId && result.warps_computed?.ref_shadow_overlay ? outputUrl(runDirId, 'ref_shadow_overlay.png') : null,
+      // Only ever set from a real backend result -- the simulated fallback
+      // pipeline never fabricates shadow analysis (it doesn't run real
+      // pixel statistics on the actual uploaded image), so this stays null
+      // in simulation mode rather than showing made-up shadow content.
       shadowAnalysis: result.shadow_analysis ?? null,
+      // Same rule as shadowAnalysis above: only ever set from a real backend
+      // result. Simulation mode doesn't run the real YOLOv8 model.
       craterDetections: result.crater_detections
         ? { src: result.crater_detections.src.craters, ref: result.crater_detections.ref.craters }
         : null,
@@ -357,7 +206,7 @@ export default function Workspace({ onNavigate }: { onNavigate?: (page: Page) =>
   };
 
   const runPipeline = async (params: RunParams) => {
-    if (data.sourceFile.length === 0 || data.refFile.length === 0) return;
+    if (!data.sourceFile || !data.refFile) return;
     setLoading(true);
     setRunError(null);
     setBackendAvailable(null);
@@ -372,17 +221,29 @@ export default function Workspace({ onNavigate }: { onNavigate?: (page: Page) =>
       let runDirId: string | null = null;
       let matchPoints: WorkspaceData['matchPoints'] = [];
 
+      let pipelineFailedReason: string | null = null;
+
       try {
-        result = await runRegistration(data.sourceFile, data.refFile, params);
+        result = await runRegistration(
+          data.sourceFile, data.refFile, params, undefined,
+          data.sourceCompanionFiles, data.refCompanionFiles
+        );
         stopTicker();
         setActiveStageIndex(PIPELINE_STAGES.length - 1);
         setBackendAvailable(true);
+        runDirId = (result as any).run_dir_id || null;
 
         if (result.status === 'failed') {
-          throw new Error(`Pipeline failed: ${result.reason || 'unknown reason'}`);
-        }
-        runDirId = (result as any).run_dir_id || null;
-        if (runDirId) {
+          // A REAL, honest pipeline outcome (e.g. insufficient real matches
+          // on a genuine cross-sensor Chandrayaan-2/LRO pair -- an
+          // expected, documented real finding, not a bug) -- must be
+          // shown as-is, never silently swallowed into a fabricated
+          // simulated run pretending the backend was unreachable. The
+          // real run_dir_id is kept (the backend now persists metrics.json
+          // even on this path) so run-scoped features that only need real
+          // acquisition metadata, not a successful match, still work.
+          pipelineFailedReason = `Pipeline could not complete: ${result.reason || 'unknown reason'}`;
+        } else if (runDirId) {
           try {
             matchPoints = await fetchMatchPoints(runDirId);
           } catch {
@@ -390,7 +251,18 @@ export default function Workspace({ onNavigate }: { onNavigate?: (page: Page) =>
           }
         }
       } catch (err) {
-        console.warn('Backend unavailable, switching to simulation:', err);
+        // A real HTTP error response from a REACHABLE backend
+        // (runRegistration throws "Backend error (5xx): ..." for a
+        // non-ok response -- e.g. a real ingestion bug, a malformed
+        // upload) is a real application failure, not "the backend is
+        // down" -- it must never be silently disguised as a simulation
+        // run. Only a genuine network-level failure (fetch couldn't even
+        // reach the server: a TypeError, or an AbortError from the
+        // request timeout) falls back to simulation.
+        if (err instanceof Error && err.message.startsWith('Backend error')) {
+          throw err; // handled by the outer catch below -> setRunError, no simulation
+        }
+        console.warn('Backend unreachable, switching to simulation:', err);
         stopTicker();
         setBackendAvailable(false);
         simulationMode = true;
@@ -400,6 +272,16 @@ export default function Workspace({ onNavigate }: { onNavigate?: (page: Page) =>
           (idx) => setActiveStageIndex(idx)
         );
         matchPoints = (globalThis as any).__lastSimulatedMatchPoints || [];
+      }
+
+      if (pipelineFailedReason) {
+        // Nothing to render as a full pipeline stage (no matches, no
+        // registration) -- still record the real run_dir_id so run-scoped
+        // features work, and surface the real reason instead of
+        // pretending this succeeded or switching to fake simulated data.
+        setData((prev) => ({ ...prev, runDirId, simulationMode: false }));
+        setRunError(pipelineFailedReason);
+        return;
       }
 
       applyResult(result as RunResultOk, matchPoints, simulationMode, runDirId, srcDims, refDims);
@@ -469,30 +351,6 @@ export default function Workspace({ onNavigate }: { onNavigate?: (page: Page) =>
         elapsedMs={elapsedMs}
       />
       <main className="flex-1 w-full max-w-6xl mx-auto px-6 py-12">
-        {restorableRun && (
-          <div className="mb-6 bg-cyan-950/40 border border-cyan-400/40 rounded-sm px-4 py-3 flex flex-wrap items-center justify-between gap-4 text-xs font-mono text-cyan-200 shadow-sm">
-            <div className="flex items-center gap-2">
-              <span className="text-cyan-400 font-bold text-sm">↺</span>
-              <span>
-                A previous backend run (<code className="text-cyan-300 font-semibold">{restorableRun.runDirId}</code>) is available from your session.
-              </span>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={handleRestoreRun}
-                className="px-3 py-1 bg-cyan-400 text-black font-bold rounded-sm hover:bg-cyan-300 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
-              >
-                Restore Run
-              </button>
-              <button
-                onClick={handleDiscardRun}
-                className="px-3 py-1 bg-white/10 text-gray-300 font-semibold rounded-sm hover:bg-white/20 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
-              >
-                Discard
-              </button>
-            </div>
-          </div>
-        )}
         <div className="flex items-center justify-between">
           <WorkspaceHeader
             stage={`0${currentStep + 1}/05`}
@@ -522,6 +380,13 @@ export default function Workspace({ onNavigate }: { onNavigate?: (page: Page) =>
           ) : null}
         </div>
 
+        {/* Shown on every stage, not just Upload -- the app auto-advances
+            to Detection right after a run finishes, so a version of this
+            panel that only lived on the Upload page was never actually
+            seen in normal use. data.runDirId persists across stages once a
+            run completes, so this renders wherever the user actually is. */}
+        <OrbitalGeometryPanel runDirId={data.runDirId} />
+
         <div className="mt-8">
           {currentStep === 0 && (
             <StepUpload
@@ -545,16 +410,14 @@ export default function Workspace({ onNavigate }: { onNavigate?: (page: Page) =>
           <button
             onClick={prev}
             disabled={currentStep === 0}
-            aria-label="Navigate to previous step"
-            className="px-5 py-2.5 text-xs font-bold tracking-wide rounded-sm border border-gray-300 dark:border-white/15 text-gray-700 dark:text-gray-200 hover:border-cyan-500 dark:hover:border-cyan-400/60 hover:text-cyan-600 dark:hover:text-cyan-300 disabled:bg-gray-100 dark:disabled:bg-white/[0.02] disabled:text-gray-400 dark:disabled:text-gray-600 disabled:border-gray-200 dark:disabled:border-white/5 disabled:cursor-not-allowed transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+            className="px-5 py-2.5 text-xs font-bold tracking-wide rounded-sm border border-gray-300 dark:border-white/15 text-gray-700 dark:text-gray-200 hover:border-cyan-500 dark:hover:border-cyan-400/60 hover:text-cyan-600 dark:hover:text-cyan-300 disabled:bg-gray-100 dark:disabled:bg-white/[0.02] disabled:text-gray-400 dark:disabled:text-gray-600 disabled:border-gray-200 dark:disabled:border-white/5 disabled:cursor-not-allowed transition-colors"
           >
             ← Back
           </button>
           <button
             onClick={next}
             disabled={!isStepComplete(currentStep) || currentStep === STEPS.length - 1}
-            aria-label={nextButtonLabel()}
-            className="px-5 py-2.5 text-xs font-bold tracking-wide rounded-sm bg-cyan-500 dark:bg-cyan-400 text-white dark:text-black hover:bg-cyan-400 dark:hover:bg-cyan-300 disabled:bg-gray-200 dark:disabled:bg-white/10 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+            className="px-5 py-2.5 text-xs font-bold tracking-wide rounded-sm bg-cyan-500 dark:bg-cyan-400 text-white dark:text-black hover:bg-cyan-400 dark:hover:bg-cyan-300 disabled:bg-gray-200 dark:disabled:bg-white/10 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed transition-colors"
           >
             {nextButtonLabel()}
           </button>

@@ -214,8 +214,7 @@ export default function CrossSensorCompare({
           {mode === 'crossfade' && (
             <button
               onClick={() => setPlaying((p) => !p)}
-              aria-label={playing ? 'Pause animation' : 'Play animation'}
-              className="px-3 py-1.5 text-[10px] font-mono uppercase tracking-wide border rounded-sm bg-gray-50 dark:bg-white/[0.03] text-gray-400 border-gray-300 dark:border-white/15 hover:border-cyan-400/60 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+              className="px-3 py-1.5 text-[10px] font-mono uppercase tracking-wide border rounded-sm bg-gray-50 dark:bg-white/[0.03] text-gray-400 border-gray-300 dark:border-white/15 hover:border-cyan-400/60 transition-colors"
             >
               {playing ? 'Pause' : 'Play'}
             </button>
@@ -223,15 +222,13 @@ export default function CrossSensorCompare({
           <div className="flex text-[10px] font-mono uppercase tracking-wide border border-gray-300 dark:border-white/15 rounded-sm overflow-hidden">
             <button
               onClick={() => setMode('crossfade')}
-              aria-label="Switch to crossfade mode"
-              className={`px-3 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${mode === 'crossfade' ? 'bg-cyan-400 text-black' : 'bg-gray-50 dark:bg-white/[0.03] text-gray-400 hover:bg-white/10'}`}
+              className={`px-3 py-1.5 ${mode === 'crossfade' ? 'bg-cyan-400 text-black' : 'bg-gray-50 dark:bg-white/[0.03] text-gray-400 hover:bg-white/10'}`}
             >
               Crossfade
             </button>
             <button
               onClick={() => setMode('wipe')}
-              aria-label="Switch to wipe/scrub mode"
-              className={`px-3 py-1.5 border-l border-gray-300 dark:border-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${mode === 'wipe' ? 'bg-cyan-400 text-black' : 'bg-gray-50 dark:bg-white/[0.03] text-gray-400 hover:bg-white/10'}`}
+              className={`px-3 py-1.5 border-l border-gray-300 dark:border-white/15 ${mode === 'wipe' ? 'bg-cyan-400 text-black' : 'bg-gray-50 dark:bg-white/[0.03] text-gray-400 hover:bg-white/10'}`}
             >
               Wipe / scrub
             </button>
@@ -245,20 +242,29 @@ export default function CrossSensorCompare({
         onPointerMove={mode === 'wipe' ? onWipePointerMove : undefined}
         onPointerUp={mode === 'wipe' ? onWipePointerUp : undefined}
       >
-        <img src={srcUrl} alt="Source sensor image comparison slice" className="absolute inset-0 w-full h-full object-cover" draggable={false} />
+        {/* object-cover, not object-contain: fills the panel edge-to-edge
+            (a real NAC strip's own extreme aspect ratio would otherwise
+            letterbox hard under object-contain -- cover crops instead of
+            padding, which is the right trade for a comparison widget
+            whose job is visual engagement, not exact framing). */}
+        <img src={srcUrl} alt="Source" className="absolute inset-0 w-full h-full object-cover" draggable={false} />
 
         {mode === 'crossfade' ? (
           <img
             src={refUrl}
-            alt="Reference sensor image comparison slice"
+            alt="Reference"
             className="absolute inset-0 w-full h-full object-cover"
             draggable={false}
             style={{ opacity: phase }}
           />
         ) : (
+          // clip-path on the full-size reference image itself (rather than
+          // clipping a nested, narrower div) -- avoids having to track the
+          // container's own pixel width to keep object-cover scaling
+          // consistent between the two layers.
           <img
             src={refUrl}
-            alt="Reference sensor image comparison slice"
+            alt="Reference"
             className="absolute inset-0 w-full h-full object-cover"
             draggable={false}
             style={{ clipPath: `inset(0 ${100 - wipePct}% 0 0)` }}

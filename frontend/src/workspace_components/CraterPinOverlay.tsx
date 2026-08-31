@@ -192,11 +192,7 @@ export default function CraterPinOverlay({
                 </div>
               )}
             </div>
-            <button
-              onClick={() => setOpenIndex(null)}
-              aria-label="Close crater details popup"
-              className="text-gray-500 hover:text-white leading-none text-base shrink-0 ml-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 rounded-sm"
-            >
+            <button onClick={() => setOpenIndex(null)} className="text-gray-500 hover:text-white leading-none text-base shrink-0 ml-2">
               ×
             </button>
           </div>

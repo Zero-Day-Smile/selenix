@@ -2,8 +2,21 @@
 import type { MatchPoint, ShadowAnalysis } from '../services/api';
 
 export interface WorkspaceData {
-  sourceFile: File[];
-  refFile: File[];
+  sourceFile: File | null;
+  refFile: File | null;
+  // Real detached-label PDS3/PDS4 products (most PDS4 Chandrayaan-2
+  // downloads, some NAC re-releases) are a label file (.xml/.lbl) PLUS a
+  // separate companion binary (.img/.IMG) that must be uploaded together
+  // -- the label's sibling-file reference is by relative filename, so the
+  // backend needs both in the same request. sourceFile/refFile stays the
+  // primary file (whichever the picker/backend would treat as the entry
+  // point -- preferring .xml/.lbl when both are selected, matching
+  // backend/app/main.py's own _ENTRY_POINT_PRIORITY) for preview/filename-
+  // matching purposes; these hold any additional files selected alongside
+  // it. Empty for the common single-file case (plain PNG/JPG/TIFF, or an
+  // attached-label .IMG that's already self-contained).
+  sourceCompanionFiles: File[];
+  refCompanionFiles: File[];
   sourceUrl: string | null; // local preview (object URL) of the raw upload
   refUrl: string | null;
   sourceMetadata: Record<string, any>;
@@ -63,7 +76,7 @@ export interface WorkspaceData {
   outliers: number;
   inlierRatio: number; // 0..1 fraction
   geometryMethod: string;
-  matcherSelection: (Record<string, number | string> & { chosen?: string }) | null;
+  matcherSelection: (Record<string, number> & { chosen?: string }) | null;
 
   // registration
   homography: number[][];
@@ -131,8 +144,10 @@ export interface WorkspaceData {
 }
 
 export const emptyWorkspaceData = (): WorkspaceData => ({
-  sourceFile: [],
-  refFile: [],
+  sourceFile: null,
+  refFile: null,
+  sourceCompanionFiles: [],
+  refCompanionFiles: [],
   sourceUrl: null,
   refUrl: null,
   sourceMetadata: { sensor: 'OHRC', date: '2026-03-18', sunElevation: 31.8, resolution: 0.32 },
