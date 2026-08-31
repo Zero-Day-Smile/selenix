@@ -2,8 +2,8 @@
 import type { MatchPoint, ShadowAnalysis } from '../services/api';
 
 export interface WorkspaceData {
-  sourceFile: File | null;
-  refFile: File | null;
+  sourceFile: File[];
+  refFile: File[];
   sourceUrl: string | null; // local preview (object URL) of the raw upload
   refUrl: string | null;
   sourceMetadata: Record<string, any>;
@@ -63,7 +63,7 @@ export interface WorkspaceData {
   outliers: number;
   inlierRatio: number; // 0..1 fraction
   geometryMethod: string;
-  matcherSelection: (Record<string, number> & { chosen?: string }) | null;
+  matcherSelection: (Record<string, number | string> & { chosen?: string }) | null;
 
   // registration
   homography: number[][];
@@ -131,8 +131,8 @@ export interface WorkspaceData {
 }
 
 export const emptyWorkspaceData = (): WorkspaceData => ({
-  sourceFile: null,
-  refFile: null,
+  sourceFile: [],
+  refFile: [],
   sourceUrl: null,
   refUrl: null,
   sourceMetadata: { sensor: 'OHRC', date: '2026-03-18', sunElevation: 31.8, resolution: 0.32 },

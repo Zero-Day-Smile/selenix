@@ -137,7 +137,11 @@ export default function ShadowRegionOverlay({
         >
           <div className="flex items-start justify-between px-3 pt-2">
             <div className="font-bold text-sm text-orange-300">Shadowed at time of capture</div>
-            <button onClick={() => setOpenIndex(null)} className="text-gray-500 hover:text-white leading-none text-base shrink-0 ml-2">
+            <button
+              onClick={() => setOpenIndex(null)}
+              aria-label="Close shadow details popup"
+              className="text-gray-500 hover:text-white leading-none text-base shrink-0 ml-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 rounded-sm"
+            >
               ×
             </button>
           </div>

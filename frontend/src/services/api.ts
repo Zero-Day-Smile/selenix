@@ -96,7 +96,7 @@ export interface RunResultOk {
   status: 'ok';
   sensor_type: string;
   matcher_used: string;
-  matcher_selection: Record<string, number> & { chosen?: string } | null;
+  matcher_selection: (Record<string, number | string> & { chosen?: string }) | null;
   geometry_method: string;
   total_matches: number;
   inlier_count: number;
@@ -244,14 +244,21 @@ export async function checkBackendHealth(timeoutMs = 3000): Promise<boolean> {
 }
 
 export async function runRegistration(
-  sourceFile: File,
-  refFile: File,
+  sourceFile: File | File[],
+  refFile: File | File[],
   params: RunParams = {},
   timeoutMs = 120000
 ): Promise<RunResult> {
   const formData = new FormData();
-  formData.append('source', sourceFile);
-  formData.append('reference', refFile);
+  const sources = Array.isArray(sourceFile) ? sourceFile : [sourceFile];
+  const refs = Array.isArray(refFile) ? refFile : [refFile];
+
+  for (const f of sources) {
+    formData.append('source', f);
+  }
+  for (const f of refs) {
+    formData.append('reference', f);
+  }
   if (params.matcher) formData.append('matcher', params.matcher);
   if (params.illum_mode) formData.append('illum_mode', params.illum_mode);
   if (params.sensor_type) formData.append('sensor_type', params.sensor_type);
