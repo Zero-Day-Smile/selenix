@@ -1,15 +1,16 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import shutil
 import uuid
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from backend.pipeline.run_pipeline import run_registration, run_registration_manual_seed
-from backend.pipeline import memory, synthetic, ingestion, preprocessing, crater_catalog, geo_extent_guard, tmc_geometry, ancillary_readers
+from backend.pipeline import memory, synthetic, ingestion, preprocessing, crater_catalog, geo_extent_guard, tmc_geometry, ancillary_readers, groq_interpret
 import json as _json
 import cv2 as _cv2
 
@@ -385,6 +386,34 @@ async def chandrayaan2_image_craters(image_id: str):
         "gsd_m_per_px": gsd_m_per_px,
         "catalog_status": crater_catalog.catalog_status(),
     }
+
+
+@app.post("/api/interpret")
+async def api_interpret(body: dict = Body(...)):
+    """Single endpoint for all 4 real-time Groq (llama-3.3-70b-versatile)
+    plain-language interpretations -- the frontend never holds
+    GROQ_API_KEY; this is the only place that reads it (from the
+    environment only, never hardcoded). `body` must include an integer
+    `call_type` (1-4) plus that call's real metric fields (see
+    backend/pipeline/groq_interpret.py::build_prompt for the exact
+    fields each call type expects). Always returns 200 -- a Groq/network
+    failure or missing API key degrades to {"available": False}, never a
+    500, so a flaky or unconfigured Groq key can never break the rest of
+    the pipeline UI."""
+    call_type = body.get("call_type")
+    if call_type not in (1, 2, 3, 4, 5):
+        raise HTTPException(400, detail="call_type must be 1, 2, 3, 4, or 5")
+    fields = {k: v for k, v in body.items() if k != "call_type"}
+    # groq_interpret.interpret() does a blocking requests.post() (up to
+    # REQUEST_TIMEOUT_S=12s). Calling it directly here would block this
+    # async endpoint's entire event loop for that whole duration -- on a
+    # single-worker uvicorn process that stalls every other concurrent
+    # request (the SSIM heatmap JSON fetch, health checks, other
+    # interpretation cards firing in parallel from the same page), not
+    # just this one. Real, observed symptom: multiple InterpretationCards
+    # on one page effectively serialized behind each other. Running it in
+    # a thread keeps the blocking call off the event loop.
+    return await asyncio.to_thread(groq_interpret.interpret, call_type, fields)
 
 
 @app.get("/api/health")

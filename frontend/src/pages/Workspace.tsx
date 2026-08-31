@@ -6,6 +6,10 @@ import StepDetection from '../workspace_components/StepDetection';
 import StepRANSAC from '../workspace_components/StepRANSAC';
 import StepRegistration from '../workspace_components/StepRegistration';
 import StepEvaluation from '../workspace_components/StepEvaluation';
+import MissionStatusBar from '../workspace_components/MissionStatusBar';
+import { useElapsedTimer } from '../workspace_components/useElapsedTimer';
+import { useTheme } from '../workspace_components/useTheme';
+import { ThemeProvider } from '../workspace_components/ThemeContext';
 import { emptyWorkspaceData, type WorkspaceData } from '../workspace_components/types';
 import {
   runRegistration,
@@ -141,6 +145,8 @@ export default function Workspace({ onNavigate }: { onNavigate: (page: Page) => 
       craterDetections: result.crater_detections
         ? { src: result.crater_detections.src.craters, ref: result.crater_detections.ref.craters }
         : null,
+      srcGeometry: result.ingestion?.src_geometry ?? null,
+      refGeometry: result.ingestion?.ref_geometry ?? null,
       matchPointsCsvUrl: runDirId ? outputUrl(runDirId, 'match_points.csv') : null,
       metricsJsonUrl: runDirId ? outputUrl(runDirId, 'metrics.json') : null,
       matchPoints,
@@ -183,6 +189,9 @@ export default function Workspace({ onNavigate }: { onNavigate: (page: Page) => 
             scaleDisagreementThreshold: result.homography_quality.scale_disagreement_threshold ?? null,
             scaleDisagreementFlagged: result.homography_quality.scale_disagreement_flagged ?? false,
           }
+        : null,
+      rotationConsistency: result.rotation_consistency
+        ? { stdDeg: result.rotation_consistency.std_deg, nPairs: result.rotation_consistency.n_pairs }
         : null,
       ssim: {
         mean: result.ssim?.mean_ssim || 0,
@@ -259,9 +268,54 @@ export default function Workspace({ onNavigate }: { onNavigate: (page: Page) => 
   };
   const nextButtonLabel = () => (currentStep === STEPS.length - 1 ? 'Completed' : `Go to ${STEPS[currentStep + 1]} →`);
 
+  const elapsedMs = useElapsedTimer(loading || currentStep > 0);
+  const [theme, toggleTheme] = useTheme();
+
   return (
-    <div className="min-h-screen bg-[#f4f4f4] text-black font-sans flex flex-col">
-      <Navbar onNavigate={onNavigate} />
+    <ThemeProvider theme={theme}>
+    <div
+      className={`${theme === 'dark' ? 'dark' : ''} relative min-h-screen bg-white dark:bg-[#0a0b0f] text-black dark:text-gray-100 font-sans flex flex-col transition-colors`}
+    >
+      {/* Real lunar background: a real Chandrayaan-2 TMC-2 orbital strip
+          (backend/data/real/chandrayaan2/tmc2_20260803_0049 -- one of this
+          project's own real frames, rotated into a wide panorama and tiled
+          horizontally), slowly panning left to feel alive without competing
+          with the foreground content. Fixed behind everything, low opacity,
+          and faded via a gradient overlay so text stays readable in both
+          themes. `pointer-events-none` + `aria-hidden` since it's decorative. */}
+      <style>{`
+        @keyframes moon-bg-pan {
+          from { background-position-x: 0; }
+          to { background-position-x: -3600px; }
+        }
+      `}</style>
+      <div
+        aria-hidden="true"
+        className="fixed inset-0 pointer-events-none opacity-[0.22] dark:opacity-[0.4]"
+        style={{
+          backgroundImage: 'url(/assets/moon-bg.jpg)',
+          backgroundRepeat: 'repeat-x',
+          backgroundSize: 'auto 100%',
+          animation: 'moon-bg-pan 90s linear infinite',
+          filter: 'grayscale(1)',
+        }}
+      />
+      {/* A light vignette, not a full wash -- just enough to soften the tiled
+          strip's top/bottom repeat seams. The real content sits in opaque/
+          glass cards above this, so the page canvas itself can stay clearly
+          visible without hurting text legibility. */}
+      <div
+        aria-hidden="true"
+        className="fixed inset-0 pointer-events-none bg-gradient-to-b from-white/70 via-transparent to-white/70 dark:from-[#0a0b0f]/70 dark:via-transparent dark:to-[#0a0b0f]/70"
+      />
+      <div className="relative z-10 flex flex-col min-h-screen">
+      <Navbar onNavigate={onNavigate} dark={theme === 'dark'} theme={theme} onToggleTheme={toggleTheme} />
+      <MissionStatusBar
+        steps={STEPS}
+        currentStep={currentStep}
+        completedUpTo={[0, 1, 2, 3, 4].filter((s) => s < currentStep || (s === currentStep && isStepComplete(s)))}
+        elapsedMs={elapsedMs}
+      />
       <main className="flex-1 w-full max-w-6xl mx-auto px-6 py-12">
         <div className="flex items-center justify-between">
           <WorkspaceHeader
@@ -283,8 +337,8 @@ export default function Workspace({ onNavigate }: { onNavigate: (page: Page) => 
             <span
               className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 rounded-sm border h-fit ${
                 data.simulationMode
-                  ? 'border-amber-400 text-amber-600 bg-amber-50'
-                  : 'border-green-400 text-green-700 bg-green-50'
+                  ? 'border-amber-400 text-amber-700 bg-amber-50 dark:border-amber-400/40 dark:text-amber-300 dark:bg-amber-400/10'
+                  : 'border-green-400 text-green-700 bg-green-50 dark:border-green-400/40 dark:text-green-300 dark:bg-green-400/10'
               }`}
             >
               {data.simulationMode ? '⚡ Simulation mode' : '✅ Backend result'}
@@ -311,23 +365,25 @@ export default function Workspace({ onNavigate }: { onNavigate: (page: Page) => 
           {currentStep === 4 && <StepEvaluation data={data} />}
         </div>
 
-        <div className="flex justify-between mt-10 border-t border-gray-200 pt-6">
+        <div className="flex justify-between mt-10 border-t border-gray-200 dark:border-white/10 pt-6">
           <button
             onClick={prev}
             disabled={currentStep === 0}
-            className="px-5 py-2.5 text-xs font-bold tracking-wide rounded-sm border border-gray-300 hover:border-black disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
+            className="px-5 py-2.5 text-xs font-bold tracking-wide rounded-sm border border-gray-300 dark:border-white/15 text-gray-700 dark:text-gray-200 hover:border-cyan-500 dark:hover:border-cyan-400/60 hover:text-cyan-600 dark:hover:text-cyan-300 disabled:bg-gray-100 dark:disabled:bg-white/[0.02] disabled:text-gray-400 dark:disabled:text-gray-600 disabled:border-gray-200 dark:disabled:border-white/5 disabled:cursor-not-allowed transition-colors"
           >
             ← Back
           </button>
           <button
             onClick={next}
             disabled={!isStepComplete(currentStep) || currentStep === STEPS.length - 1}
-            className="px-5 py-2.5 text-xs font-bold tracking-wide rounded-sm bg-black text-white hover:opacity-80 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed"
+            className="px-5 py-2.5 text-xs font-bold tracking-wide rounded-sm bg-cyan-500 dark:bg-cyan-400 text-white dark:text-black hover:bg-cyan-400 dark:hover:bg-cyan-300 disabled:bg-gray-200 dark:disabled:bg-white/10 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed transition-colors"
           >
             {nextButtonLabel()}
           </button>
         </div>
       </main>
+      </div>
     </div>
+    </ThemeProvider>
   );
 }

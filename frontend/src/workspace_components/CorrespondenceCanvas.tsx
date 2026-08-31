@@ -61,7 +61,7 @@ export default function CorrespondenceCanvas({
 
   return (
     <div>
-      <div className="rounded-sm border border-gray-300 bg-gray-50 overflow-hidden">
+      <div className="rounded-sm border border-gray-200 dark:border-white/10 bg-black overflow-hidden">
         <svg viewBox={`0 0 ${totalW} ${DISPLAY_HEIGHT}`} width="100%" style={{ display: 'block' }}>
           <image href={srcUrl} x={0} y={0} width={srcDispW} height={DISPLAY_HEIGHT} preserveAspectRatio="none" />
           <image href={refUrl} x={refOffsetX} y={0} width={refDispW} height={DISPLAY_HEIGHT} preserveAspectRatio="none" />

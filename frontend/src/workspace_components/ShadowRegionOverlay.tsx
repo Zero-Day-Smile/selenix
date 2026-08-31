@@ -126,7 +126,7 @@ export default function ShadowRegionOverlay({
 
       {open && (
         <div
-          className="absolute pointer-events-auto bg-white border border-orange-300 rounded-sm shadow-lg text-xs w-64"
+          className="absolute pointer-events-auto bg-[#111318]/95 backdrop-blur-md border border-orange-400/40 rounded-sm shadow-lg text-xs w-64 text-gray-800 dark:text-gray-200"
           style={{
             left: Math.min(Math.max(open.sx - 100, 4), Math.max(4, containerSize.w - 256 - 4)),
             top:
@@ -136,8 +136,8 @@ export default function ShadowRegionOverlay({
           }}
         >
           <div className="flex items-start justify-between px-3 pt-2">
-            <div className="font-bold text-sm text-orange-700">Shadowed at time of capture</div>
-            <button onClick={() => setOpenIndex(null)} className="text-gray-400 hover:text-black leading-none text-base shrink-0 ml-2">
+            <div className="font-bold text-sm text-orange-300">Shadowed at time of capture</div>
+            <button onClick={() => setOpenIndex(null)} className="text-gray-500 hover:text-white leading-none text-base shrink-0 ml-2">
               ×
             </button>
           </div>
@@ -145,16 +145,16 @@ export default function ShadowRegionOverlay({
             <div>
               Area: <span className="font-mono">{open.area_px.toLocaleString()} px²</span>
             </div>
-            <div className="text-[9px] text-gray-400">
+            <div className="text-[9px] text-gray-500">
               Bounding box: {open.bbox.w}×{open.bbox.h}px at ({open.bbox.x}, {open.bbox.y})
             </div>
             {sunAngleContext && (
-              <div className="text-[10px] text-gray-600">
+              <div className="text-[10px] text-gray-400">
                 Real solar incidence: <span className="font-mono">{sunAngleContext.solar_incidence_mean_deg}°</span> (mean,{' '}
                 {sunAngleContext.n_records} telemetry records)
               </div>
             )}
-            <p className="text-[9px] text-gray-500 leading-relaxed pt-1.5 border-t border-gray-100">
+            <p className="text-[9px] text-gray-500 leading-relaxed pt-1.5 border-t border-gray-200 dark:border-white/10">
               Not a permanent shadow (PSR) — a single image only shows what was dark at this specific capture. Real
               PSRs require modeling illumination over years (LOLA GDRPSR, Mazarico et al. 2011). This image's real
               latitude falls outside every published PSR product's coverage, so there's no PSR ground truth to

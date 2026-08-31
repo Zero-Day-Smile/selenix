@@ -34,6 +34,13 @@ export interface WorkspaceData {
   refShadowOverlayUrl: string | null;
   shadowAnalysis: ShadowAnalysis | null;
 
+  // Real, best-effort label-derived ground-sample-distance info (see
+  // services/api.ts's RunResultOk.ingestion) -- frequently empty, never
+  // normalized to a common unit. Used only for real-metadata display
+  // (e.g. CrossSensorCompare), never for any actual pixel-space math.
+  srcGeometry: Record<string, string> | null;
+  refGeometry: Record<string, string> | null;
+
   // Real YOLOv8 crater detections (backend/pipeline/crater_detector.py),
   // in the SAME processed-image pixel space as matchPoints below -- distinct
   // from the catalog-crater lookup (CraterPinOverlay), which only covers the
@@ -105,6 +112,14 @@ export interface WorkspaceData {
     scaleDisagreementThreshold: number | null;
     scaleDisagreementFlagged: boolean;
   } | null;
+  // Real pairwise rotation-consistency diagnostic (backend/pipeline/
+  // metrics.py::pairwise_rotation_consistency) -- this project's own
+  // primary, load-bearing signal for distinguishing a real alignment from
+  // a spurious match set (see rotation_consistency in services/api.ts).
+  // Was computed by the backend all along but never previously
+  // propagated into WorkspaceData -- added for the Groq interpretation
+  // cards (Calls 2 and 3), which both need it.
+  rotationConsistency: { stdDeg: number; nPairs: number } | null;
   ssim: {
     mean: number;
     validRegion: number;
@@ -134,6 +149,8 @@ export const emptyWorkspaceData = (): WorkspaceData => ({
   srcShadowOverlayUrl: null,
   refShadowOverlayUrl: null,
   shadowAnalysis: null,
+  srcGeometry: null,
+  refGeometry: null,
   craterDetections: null,
   matchPointsCsvUrl: null,
   metricsJsonUrl: null,
@@ -167,6 +184,7 @@ export const emptyWorkspaceData = (): WorkspaceData => ({
   heatmapData: Array.from({ length: 4 }, () => Array(4).fill(0)),
   validation: { validated: false, label: '', reasons: [] },
   homographyQuality: null,
+  rotationConsistency: null,
   ssim: { mean: 0, validRegion: 0, validFraction: 0 },
   elapsedSeconds: 0,
   matcherUsed: '',

@@ -174,7 +174,7 @@ export default function CraterPinOverlay({
 
       {open && (
         <div
-          className="absolute pointer-events-auto bg-white border border-purple-300 rounded-sm shadow-lg text-xs w-64"
+          className="absolute pointer-events-auto bg-[#111318]/95 backdrop-blur-md border border-purple-400/40 rounded-sm shadow-lg text-xs w-64 text-gray-800 dark:text-gray-200"
           style={{
             left: Math.min(Math.max(open.sx - 100, 4), Math.max(4, containerSize.w - 256 - 4)),
             top:
@@ -192,7 +192,7 @@ export default function CraterPinOverlay({
                 </div>
               )}
             </div>
-            <button onClick={() => setOpenIndex(null)} className="text-gray-400 hover:text-black leading-none text-base shrink-0 ml-2">
+            <button onClick={() => setOpenIndex(null)} className="text-gray-500 hover:text-white leading-none text-base shrink-0 ml-2">
               ×
             </button>
           </div>
@@ -210,15 +210,15 @@ export default function CraterPinOverlay({
               Latitude: <span className="font-mono">{open.lat.toFixed(4)}°</span>
             </div>
             <div>
-              Longitude: <span className="font-mono">{open.lon.toFixed(4)}°</span> <span className="text-gray-400">(0–360° convention)</span>
+              Longitude: <span className="font-mono">{open.lon.toFixed(4)}°</span> <span className="text-gray-500">(0–360° convention)</span>
             </div>
-            <div className="text-[9px] text-gray-500 pt-1 border-t border-gray-100 mt-1">Source: {open.source}</div>
+            <div className="text-[9px] text-gray-500 pt-1 border-t border-gray-200 dark:border-white/10 mt-1">Source: {open.source}</div>
             {open.gazetteer_link && (
               <a
                 href={open.gazetteer_link}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block text-[10px] font-bold text-purple-600 underline hover:text-purple-800 pt-1"
+                className="block text-[10px] font-bold text-purple-300 underline hover:text-purple-200 pt-1"
               >
                 USGS Gazetteer page →
               </a>

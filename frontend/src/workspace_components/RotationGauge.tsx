@@ -18,37 +18,76 @@
 // (every real failure case's magnitude, plus that one suspicious pass).
 import React from 'react';
 
-const GREEN_MAX = 30;
-const AMBER_MAX = 70;
+const DEFAULT_GREEN_MAX = 30;
+const DEFAULT_AMBER_MAX = 70;
+const DEFAULT_MAX_DEG = 180;
 
-export default function RotationGauge({ rotationDeg }: { rotationDeg: number }) {
-  const magnitude = Math.min(Math.abs(rotationDeg), 180);
-  const color = magnitude <= GREEN_MAX ? '#16a34a' : magnitude <= AMBER_MAX ? '#d97706' : '#dc2626';
-  const label = magnitude <= GREEN_MAX ? 'plausible' : magnitude <= AMBER_MAX ? 'caution' : 'extreme';
+export default function RotationGauge({
+  rotationDeg,
+  greenMax = DEFAULT_GREEN_MAX,
+  amberMax = DEFAULT_AMBER_MAX,
+  maxDeg = DEFAULT_MAX_DEG,
+  greenLabel = 'plausible',
+  amberLabel = 'caution',
+  redLabel = 'extreme',
+}: {
+  rotationDeg: number;
+  // Real per-metric thresholds -- defaults match this component's original
+  // homography-rotation use (see module docstring); pass different bands
+  // for a different metric (e.g. rotation-consistency std, threshold 15deg)
+  // rather than duplicating the whole gauge for each metric.
+  greenMax?: number;
+  amberMax?: number;
+  maxDeg?: number;
+  greenLabel?: string;
+  amberLabel?: string;
+  redLabel?: string;
+}) {
+  const magnitude = Math.min(Math.abs(rotationDeg), maxDeg);
+  const color = magnitude <= greenMax ? '#16a34a' : magnitude <= amberMax ? '#d97706' : '#dc2626';
+  const label = magnitude <= greenMax ? greenLabel : magnitude <= amberMax ? amberLabel : redLabel;
 
-  // Semicircle gauge: 0deg magnitude at the left end, 180deg at the right end.
+  // Semicircle gauge: 0deg magnitude at the left end, maxDeg at the right end.
   const cx = 70, cy = 66, r = 56;
   const angleToPoint = (deg: number) => {
-    const rad = (Math.PI * (180 - deg)) / 180; // 0deg -> left (pi), 180deg -> right (0)
+    const rad = (Math.PI * (1 - deg / maxDeg)); // 0 -> left (pi), maxDeg -> right (0)
     return { x: cx + r * Math.cos(rad), y: cy - r * Math.sin(rad) };
   };
   const start = angleToPoint(0);
-  const greenEnd = angleToPoint(GREEN_MAX);
-  const amberEnd = angleToPoint(AMBER_MAX);
-  const end = angleToPoint(180);
+  const greenEnd = angleToPoint(Math.min(greenMax, maxDeg));
+  const amberEnd = angleToPoint(Math.min(amberMax, maxDeg));
+  const end = angleToPoint(maxDeg);
   const needle = angleToPoint(magnitude);
 
   const arc = (from: { x: number; y: number }, to: { x: number; y: number }, sweepDeg: number) =>
     `M ${from.x} ${from.y} A ${r} ${r} 0 ${sweepDeg > 180 ? 1 : 0} 1 ${to.x} ${to.y}`;
 
+  const uid = React.useId().replace(/:/g, '');
+
   return (
-    <div className="flex flex-col items-center shrink-0" style={{ width: 140 }}>
+    <div className="flex flex-col items-center shrink-0 rounded-sm p-2 bg-white/60 border border-gray-200 dark:bg-white/[0.04] dark:border-white/10 backdrop-blur-md" style={{ width: 148 }}>
       <svg viewBox="0 0 140 78" width={140} height={78}>
-        <path d={arc(start, greenEnd, GREEN_MAX)} stroke="#bbf7d0" strokeWidth={10} fill="none" />
-        <path d={arc(greenEnd, amberEnd, AMBER_MAX - GREEN_MAX)} stroke="#fde68a" strokeWidth={10} fill="none" />
-        <path d={arc(amberEnd, end, 180 - AMBER_MAX)} stroke="#fecaca" strokeWidth={10} fill="none" />
-        <line x1={cx} y1={cy} x2={needle.x} y2={needle.y} stroke={color} strokeWidth={2.5} strokeLinecap="round" />
-        <circle cx={cx} cy={cy} r={4} fill={color} />
+        <defs>
+          {/* Real semantic colors, given a small amount of depth via a
+              restrained gradient -- not a neon effect. */}
+          <linearGradient id={`${uid}-g`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#22c55e" />
+            <stop offset="100%" stopColor="#16a34a" />
+          </linearGradient>
+          <linearGradient id={`${uid}-a`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#eab308" />
+            <stop offset="100%" stopColor="#d97706" />
+          </linearGradient>
+          <linearGradient id={`${uid}-r`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#ef4444" />
+            <stop offset="100%" stopColor="#dc2626" />
+          </linearGradient>
+        </defs>
+        <path d={arc(start, greenEnd, greenMax)} stroke={`url(#${uid}-g)`} strokeWidth={9} fill="none" />
+        <path d={arc(greenEnd, amberEnd, amberMax - greenMax)} stroke={`url(#${uid}-a)`} strokeWidth={9} fill="none" />
+        <path d={arc(amberEnd, end, maxDeg - amberMax)} stroke={`url(#${uid}-r)`} strokeWidth={9} fill="none" />
+        <line x1={cx} y1={cy} x2={needle.x} y2={needle.y} stroke={color} strokeWidth={2} strokeLinecap="round" />
+        <circle cx={cx} cy={cy} r={3.5} fill={color} />
       </svg>
       <div className="text-center -mt-1">
         <div className="font-mono font-bold text-sm" style={{ color }}>

@@ -66,7 +66,7 @@ export default function SsimHeatmapPlot({
 
   return (
     <>
-      <div style={{ background: '#28282c', borderRadius: 6 }} className="border border-gray-300 overflow-hidden">
+      <div style={{ background: '#28282c', borderRadius: 6 }} className="border border-gray-200 dark:border-white/10 overflow-hidden">
         <Plot
           data={[
             {

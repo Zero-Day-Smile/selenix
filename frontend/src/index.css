@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* Class-based dark mode (Tailwind v4 defaults dark: to the OS
+   prefers-color-scheme media query) -- this app needs a user-toggled
+   light/dark switch instead, so dark: applies whenever a `.dark` class is
+   present on an ancestor (the workspace root, see Workspace.tsx). */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Add to your global CSS */
 @keyframes fadeInUp {
   from {

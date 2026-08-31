@@ -59,48 +59,48 @@ export default function StepRegistration({ data }: { data: WorkspaceData }) {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <div className="bg-white border border-gray-200 p-6 shadow-sm rounded-sm">
-        <h3 className="text-xs font-bold tracking-wide uppercase mb-4">
+      <div className="bg-white border border-gray-200 dark:bg-white/[0.04] dark:backdrop-blur-md dark:border-white/10 p-6 shadow-sm rounded-sm">
+        <h3 className="text-xs font-bold tracking-wide uppercase mb-4 text-gray-700 dark:text-gray-300">
           {hasRealWarp ? 'Warped source over reference' : 'Approximate warp preview (simulated)'}
         </h3>
-        <div ref={elRef} className="w-full h-[420px] border border-gray-300 rounded-sm overflow-hidden bg-black" />
+        <div ref={elRef} className="w-full h-[420px] border border-gray-200 dark:border-white/10 rounded-sm overflow-hidden bg-black" />
         <div className="flex items-center gap-4 mt-4">
-          <span className="text-xs text-gray-500">Reference</span>
-          <input type="range" min="0" max="100" value={blend} onChange={(e) => setBlend(parseInt(e.target.value))} className="flex-1 accent-black" />
-          <span className="text-xs text-gray-500">Warped source</span>
+          <span className="text-xs text-gray-400">Reference</span>
+          <input type="range" min="0" max="100" value={blend} onChange={(e) => setBlend(parseInt(e.target.value))} className="flex-1 accent-cyan-400" />
+          <span className="text-xs text-gray-400">Warped source</span>
         </div>
-        <p className="text-[10px] text-gray-400 mt-2">
+        <p className="text-[10px] text-gray-500 mt-2">
           Both layers are real images in one pannable/zoomable viewer — fills the frame by default; zoom out or use
           the home button to see the whole, uncropped pair. The slider cross-fades the warped source over the
           reference.
         </p>
         {!hasRealWarp && (
-          <p className="text-[10px] text-amber-600 mt-2">
+          <p className="text-[10px] text-amber-400 mt-2">
             No real warped raster available — showing the unwarped source preview instead of a true per-pixel warp.
           </p>
         )}
       </div>
       <div
-        className={`bg-white border p-6 shadow-sm rounded-sm ${
-          hq?.degenerate ? 'border-red-400 ring-1 ring-red-300' : 'border-gray-200'
+        className={`bg-white/[0.04] backdrop-blur-md border p-6 shadow-sm rounded-sm ${
+          hq?.degenerate ? 'border-red-400/60 ring-1 ring-red-400/40' : 'border-gray-200 dark:border-white/10'
         }`}
       >
         <div className="flex items-start justify-between gap-3 mb-4">
-          <h3 className="text-xs font-bold tracking-wide uppercase">Estimated homography</h3>
+          <h3 className="text-xs font-bold tracking-wide uppercase text-gray-700 dark:text-gray-300">Estimated homography</h3>
           {hq?.degenerate && (
-            <span className="text-[9px] font-bold uppercase tracking-wide text-white bg-red-600 px-2 py-1 rounded-sm shrink-0">
+            <span className="text-[9px] font-bold uppercase tracking-wide text-black bg-red-400 px-2 py-1 rounded-sm shrink-0">
               Degenerate — see evidence below
             </span>
           )}
         </div>
-        <div className="grid grid-cols-3 gap-2 bg-gray-50 p-4 border border-gray-200 font-mono text-xs text-center">
+        <div className="grid grid-cols-3 gap-2 bg-gray-50 dark:bg-black/20 p-4 border border-gray-200 dark:border-white/10 font-mono text-xs text-center text-gray-800 dark:text-gray-200">
           {data.homography.flat().map((v, i) => (
             <div key={i}>{typeof v === 'number' ? v.toFixed(4) : v}</div>
           ))}
         </div>
         {hq && (
           <p className="text-[10px] text-gray-500 mt-2 font-mono">
-            Condition ratio (largest/smallest singular value): <span className="font-bold">{hq.conditionRatio.toFixed(2)}:1</span>{' '}
+            Condition ratio (largest/smallest singular value): <span className="font-bold text-gray-700 dark:text-gray-300">{hq.conditionRatio.toFixed(2)}:1</span>{' '}
             (threshold: {hq.threshold}:1)
           </p>
         )}
@@ -114,18 +114,18 @@ export default function StepRegistration({ data }: { data: WorkspaceData }) {
           </div>
         </div>
 
-        <div className="mt-5 pt-4 border-t border-gray-100">
+        <div className="mt-5 pt-4 border-t border-gray-200 dark:border-white/10">
           <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500 mb-2">
             Scale cross-check — homography vs. dimensions/GSD
           </p>
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-gray-50 border border-gray-200 rounded-sm px-2.5 py-1.5">
-              <div className="text-[9px] text-gray-400 uppercase tracking-wide">From homography</div>
-              <div className="font-mono font-bold text-sm">{scale.toFixed(3)}×</div>
+            <div className="bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-sm px-2.5 py-1.5">
+              <div className="text-[9px] text-gray-500 uppercase tracking-wide">From homography</div>
+              <div className="font-mono font-bold text-sm text-gray-900 dark:text-gray-100">{scale.toFixed(3)}×</div>
             </div>
-            <div className="bg-gray-50 border border-gray-200 rounded-sm px-2.5 py-1.5">
-              <div className="text-[9px] text-gray-400 uppercase tracking-wide">From dimensions/GSD</div>
-              <div className="font-mono font-bold text-sm">{data.metrics.scaleFactorDimensionBased.toFixed(3)}×</div>
+            <div className="bg-gray-50 dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-sm px-2.5 py-1.5">
+              <div className="text-[9px] text-gray-500 uppercase tracking-wide">From dimensions/GSD</div>
+              <div className="font-mono font-bold text-sm text-gray-900 dark:text-gray-100">{data.metrics.scaleFactorDimensionBased.toFixed(3)}×</div>
             </div>
           </div>
         </div>
@@ -135,8 +135,8 @@ export default function StepRegistration({ data }: { data: WorkspaceData }) {
 }
 
 const Param = ({ label, value }: { label: string; value: string }) => (
-  <div className="flex justify-between text-xs border-b border-gray-100 py-1">
+  <div className="flex justify-between text-xs border-b border-gray-200 dark:border-white/10 py-1">
     <span className="text-gray-500">{label}</span>
-    <span className="font-mono">{value}</span>
+    <span className="font-mono text-gray-800 dark:text-gray-200">{value}</span>
   </div>
 );

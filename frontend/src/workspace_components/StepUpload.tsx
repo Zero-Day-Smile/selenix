@@ -67,7 +67,7 @@ export default function StepUpload({
         />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 bg-white border border-gray-200 p-4 shadow-sm rounded-sm">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 bg-white border border-gray-200 dark:bg-white/[0.04] dark:backdrop-blur-md dark:border-white/10 p-4 shadow-sm rounded-sm">
         <Select
           label="Matcher"
           value={matcher}
@@ -107,23 +107,23 @@ export default function StepUpload({
 
       <div className="flex items-center justify-between mt-4">
         <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest">
-          <span className={`w-2 h-2 rounded-full ${healthy ? 'bg-green-500' : healthy === false ? 'bg-amber-500' : 'bg-gray-300'}`} />
-          <span className="text-gray-500">
+          <span className={`w-2 h-2 rounded-full ${healthy ? 'bg-green-400' : healthy === false ? 'bg-amber-400' : 'bg-gray-600'}`} />
+          <span className="text-gray-400">
             {healthy === null ? 'Checking backend…' : healthy ? 'Backend reachable' : 'Backend unreachable — will simulate'}
           </span>
         </div>
         <button
           onClick={() => onRun({ matcher, illum_mode: illumMode, sensor_type: sensorType })}
           disabled={!data.sourceFile || !data.refFile || loading}
-          className="px-6 py-3 text-xs font-bold tracking-wide rounded-sm bg-black text-white hover:opacity-80 disabled:bg-gray-300 disabled:text-gray-500"
+          className="px-6 py-3 text-xs font-bold tracking-wide rounded-sm bg-cyan-400 text-black hover:bg-cyan-300 disabled:bg-white/10 disabled:text-gray-500 transition-colors"
         >
           {loading ? 'Running…' : 'Run Pipeline →'}
         </button>
       </div>
 
       {loading && (
-        <div className="mt-6 bg-white border border-gray-200 p-5 shadow-sm rounded-sm">
-          <h3 className="text-[10px] font-bold tracking-widest uppercase mb-3 text-gray-500">Pipeline progress</h3>
+        <div className="mt-6 bg-white border border-gray-200 dark:bg-white/[0.04] dark:backdrop-blur-md dark:border-white/10 p-5 shadow-sm rounded-sm">
+          <h3 className="text-[10px] font-bold tracking-widest uppercase mb-3 text-gray-400">Pipeline progress</h3>
           <ul className="space-y-2">
             {PIPELINE_STAGES.map((stage, i) => {
               const state = i < activeStageIndex ? 'done' : i === activeStageIndex ? 'active' : 'pending';
@@ -132,15 +132,15 @@ export default function StepUpload({
                   <span
                     className={`w-4 h-4 flex items-center justify-center rounded-full text-[9px] font-mono shrink-0 ${
                       state === 'done'
-                        ? 'bg-black text-white'
+                        ? 'bg-green-400 text-black'
                         : state === 'active'
-                        ? 'border-2 border-black animate-pulse'
-                        : 'border border-gray-300 text-gray-300'
+                        ? 'border-2 border-cyan-400 text-cyan-300 animate-pulse'
+                        : 'border border-gray-300 dark:border-white/15 text-gray-600'
                     }`}
                   >
                     {state === 'done' ? '✓' : i + 1}
                   </span>
-                  <span className={state === 'pending' ? 'text-gray-400' : 'text-black'}>{stage}</span>
+                  <span className={state === 'pending' ? 'text-gray-600' : state === 'active' ? 'text-cyan-300' : 'text-gray-800 dark:text-gray-200'}>{stage}</span>
                 </li>
               );
             })}
@@ -149,14 +149,14 @@ export default function StepUpload({
       )}
 
       <div className="flex flex-wrap items-center justify-between mt-4">
-        {runError && <span className="text-xs text-red-600">Error: {runError}</span>}
+        {runError && <span className="text-xs text-red-400">Error: {runError}</span>}
         {backendAvailable === false && !loading && (
-          <span className="text-xs text-amber-600">
+          <span className="text-xs text-amber-400">
             ⚡ Backend unreachable — showing a simulated pipeline run for demonstration purposes.
           </span>
         )}
         {backendAvailable === true && !loading && data.keypointsSource > 0 && (
-          <span className="text-xs text-green-600">✅ Processed by backend</span>
+          <span className="text-xs text-green-400">✅ Processed by backend</span>
         )}
       </div>
     </div>
@@ -178,15 +178,15 @@ function Select({
 }) {
   return (
     <label className="block">
-      <span className="text-[10px] font-bold tracking-widest uppercase text-gray-500 block mb-1">{label}</span>
+      <span className="text-[10px] font-bold tracking-widest uppercase text-gray-400 block mb-1">{label}</span>
       <select
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full border border-gray-300 rounded-sm px-2 py-2 text-xs font-mono bg-white disabled:bg-gray-100"
+        className="w-full border border-gray-300 dark:border-white/15 rounded-sm px-2 py-2 text-xs font-mono bg-gray-50 dark:bg-white/[0.03] text-gray-800 dark:text-gray-200 disabled:bg-white/[0.01] disabled:text-gray-600"
       >
         {options.map((o) => (
-          <option key={o.value} value={o.value}>
+          <option key={o.value} value={o.value} className="bg-[#111318] text-gray-800 dark:text-gray-200">
             {o.label}
           </option>
         ))}

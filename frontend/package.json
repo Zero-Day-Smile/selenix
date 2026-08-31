@@ -10,8 +10,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@nivo/bar": "^0.99.0",
+    "@nivo/core": "^0.99.0",
+    "@nivo/funnel": "^0.99.0",
+    "@nivo/heatmap": "^0.99.0",
+    "@nivo/radar": "^0.99.0",
+    "@nivo/scatterplot": "^0.99.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/openseadragon": "^5.0.2",
+    "animejs": "^4.5.0",
+    "framer-motion": "^13.1.1",
     "openseadragon": "^6.1.0",
     "plotly.js-dist-min": "^4.0.0",
     "react": "^19.2.8",

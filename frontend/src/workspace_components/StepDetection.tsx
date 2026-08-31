@@ -5,10 +5,12 @@ import { useOsdViewer } from './useOsdViewer';
 import OsdPointOverlay from './OsdPointOverlay';
 import CraterPinOverlay from './CraterPinOverlay';
 import DetectedCraterOverlay from './DetectedCraterOverlay';
+import CrossSensorCompare, { metaFromFilename } from './CrossSensorCompare';
 import CorrespondenceCanvas, { type CorrespondencePoint } from './CorrespondenceCanvas';
 import { chandrayaan2ImageIdForFilename, fetchChandrayaan2Craters, type Chandrayaan2CratersResponse } from '../services/api';
 import { useShadowOverlayLayer } from './useShadowOverlayLayer';
 import ShadowRegionOverlay from './ShadowRegionOverlay';
+import { useCountUp } from './useCountUp';
 
 // Real crater-catalog overlay for whichever pane(s) happen to be one of our
 // 4 real Chandrayaan-2 frames with real per-pixel geometry (matched by
@@ -76,6 +78,15 @@ export default function StepDetection({ data }: { data: WorkspaceData }) {
   useShadowOverlayLayer(srcViewer, mode === 'zoom' ? data.srcShadowOverlayUrl : null, showShadow ? 0.85 : 0);
   useShadowOverlayLayer(refViewer, mode === 'zoom' ? data.refShadowOverlayUrl : null, showShadow ? 0.85 : 0);
   const hasShadowData = !!(data.srcShadowOverlayUrl || data.refShadowOverlayUrl);
+
+  const srcCompareMeta = useMemo(
+    () => metaFromFilename(data.sourceFile?.name, data.shadowAnalysis?.src.sun_angle_context?.solar_incidence_mean_deg, data.srcGeometry),
+    [data.sourceFile, data.shadowAnalysis, data.srcGeometry]
+  );
+  const refCompareMeta = useMemo(
+    () => metaFromFilename(data.refFile?.name, data.shadowAnalysis?.ref.sun_angle_context?.solar_incidence_mean_deg, data.refGeometry),
+    [data.refFile, data.shadowAnalysis, data.refGeometry]
+  );
 
   const { imageId: srcCraterImageId, resp: srcCraterResp } = useChandrayaan2Craters(data.sourceFile?.name);
   const { imageId: refCraterImageId, resp: refCraterResp } = useChandrayaan2Craters(data.refFile?.name);
@@ -166,15 +177,18 @@ export default function StepDetection({ data }: { data: WorkspaceData }) {
 
   return (
     <div>
-      <div className="bg-white border border-gray-200 p-6 shadow-sm rounded-sm">
+      {srcImg && refImg && (
+        <CrossSensorCompare srcUrl={srcImg} refUrl={refImg} srcMeta={srcCompareMeta} refMeta={refCompareMeta} />
+      )}
+      <div className="bg-white border border-gray-200 dark:bg-white/[0.04] dark:backdrop-blur-md dark:border-white/10 p-6 shadow-sm rounded-sm">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <h3 className="text-xs font-bold tracking-wide uppercase text-gray-700">Candidate matches (pre-verification)</h3>
+          <h3 className="text-xs font-bold tracking-wide uppercase text-gray-700 dark:text-gray-300">Candidate matches (pre-verification)</h3>
           <div className="flex items-center gap-2">
             {hasShadowData && mode === 'zoom' && (
               <button
                 onClick={() => setShowShadow((s) => !s)}
-                className={`px-3 py-1.5 text-[10px] font-mono uppercase tracking-wide border rounded-sm ${
-                  showShadow ? 'bg-orange-600 text-white border-orange-600' : 'bg-white text-gray-500 border-gray-300 hover:border-black'
+                className={`px-3 py-1.5 text-[10px] font-mono uppercase tracking-wide border rounded-sm transition-colors ${
+                  showShadow ? 'bg-orange-500 text-black border-orange-500' : 'bg-gray-50 dark:bg-white/[0.03] text-gray-400 border-gray-300 dark:border-white/15 hover:border-cyan-400/60'
                 }`}
               >
                 Shadow (at capture)
@@ -183,8 +197,8 @@ export default function StepDetection({ data }: { data: WorkspaceData }) {
             {data.craterDetections && mode === 'zoom' && (
               <button
                 onClick={() => setShowDetectedCraters((s) => !s)}
-                className={`px-3 py-1.5 text-[10px] font-mono uppercase tracking-wide border rounded-sm ${
-                  showDetectedCraters ? 'bg-cyan-600 text-white border-cyan-600' : 'bg-white text-gray-500 border-gray-300 hover:border-black'
+                className={`px-3 py-1.5 text-[10px] font-mono uppercase tracking-wide border rounded-sm transition-colors ${
+                  showDetectedCraters ? 'bg-cyan-400 text-black border-cyan-400' : 'bg-gray-50 dark:bg-white/[0.03] text-gray-400 border-gray-300 dark:border-white/15 hover:border-cyan-400/60'
                 }`}
               >
                 Detected craters (YOLOv8)
@@ -204,10 +218,10 @@ export default function StepDetection({ data }: { data: WorkspaceData }) {
               step={0.01}
               value={craterConfThreshold}
               onChange={(e) => setCraterConfThreshold(parseFloat(e.target.value))}
-              className="w-40 accent-cyan-600"
+              className="w-40 accent-cyan-400"
             />
-            <span className="text-[9px] font-mono text-cyan-700 w-10">{craterConfThreshold.toFixed(2)}</span>
-            <span className="text-[9px] text-gray-400">
+            <span className="text-[9px] font-mono text-cyan-300 w-10">{craterConfThreshold.toFixed(2)}</span>
+            <span className="text-[9px] text-gray-500">
               Lower reveals more of the model's real (lower-confidence) detections — also more false positives.
             </span>
           </div>
@@ -220,7 +234,7 @@ export default function StepDetection({ data }: { data: WorkspaceData }) {
             <div className="flex flex-col gap-1">
               <span className="text-[10px] text-gray-500 uppercase tracking-wide">Source</span>
               <div className="relative h-[380px] overflow-hidden rounded-sm">
-                <div ref={srcElRef} className="w-full h-full border border-gray-300 bg-black" />
+                <div ref={srcElRef} className="w-full h-full border border-gray-200 dark:border-white/10 bg-black" />
                 <OsdPointOverlay viewer={srcViewer} points={srcOverlayPoints} />
                 {srcCraterImageId && (
                   <CraterPinOverlay viewer={srcViewer} craters={srcCraters.points} gsdMPerPx={srcCraters.gsdMPerPx} />
@@ -245,7 +259,7 @@ export default function StepDetection({ data }: { data: WorkspaceData }) {
             <div className="flex flex-col gap-1">
               <span className="text-[10px] text-gray-500 uppercase tracking-wide">Reference</span>
               <div className="relative h-[380px] overflow-hidden rounded-sm">
-                <div ref={refElRef} className="w-full h-full border border-gray-300 bg-black" />
+                <div ref={refElRef} className="w-full h-full border border-gray-200 dark:border-white/10 bg-black" />
                 <OsdPointOverlay viewer={refViewer} points={refOverlayPoints} />
                 {refCraterImageId && (
                   <CraterPinOverlay viewer={refViewer} craters={refCraters.points} gsdMPerPx={refCraters.gsdMPerPx} />
@@ -297,11 +311,6 @@ export default function StepDetection({ data }: { data: WorkspaceData }) {
           </p>
         )}
 
-        <div className="flex justify-between mt-4 text-xs text-gray-500">
-          <span>Keypoints (source): {data.keypointsSource}</span>
-          <span>Keypoints (reference): {data.keypointsRef}</span>
-          <span>Candidate matches: {data.candidateMatches}</span>
-        </div>
         <p className="text-[10px] text-gray-400 mt-2">
           {mode === 'lines'
             ? 'Lines connect each candidate match across the two images; brightness/opacity encode match confidence.'
@@ -326,25 +335,33 @@ export default function StepDetection({ data }: { data: WorkspaceData }) {
 }
 
 const ModeToggle = ({ mode, setMode }: { mode: 'lines' | 'zoom'; setMode: (m: 'lines' | 'zoom') => void }) => (
-  <div className="flex text-[10px] font-mono uppercase tracking-wide border border-gray-300 rounded-sm overflow-hidden">
+  <div className="flex text-[10px] font-mono uppercase tracking-wide border border-gray-300 dark:border-white/15 rounded-sm overflow-hidden">
     <button
       onClick={() => setMode('lines')}
-      className={`px-3 py-1.5 ${mode === 'lines' ? 'bg-black text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+      className={`px-3 py-1.5 ${mode === 'lines' ? 'bg-cyan-400 text-black' : 'bg-gray-50 dark:bg-white/[0.03] text-gray-400 hover:bg-white/10'}`}
     >
       Correspondence lines
     </button>
     <button
       onClick={() => setMode('zoom')}
-      className={`px-3 py-1.5 border-l border-gray-300 ${mode === 'zoom' ? 'bg-black text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+      className={`px-3 py-1.5 border-l border-gray-300 dark:border-white/15 ${mode === 'zoom' ? 'bg-cyan-400 text-black' : 'bg-gray-50 dark:bg-white/[0.03] text-gray-400 hover:bg-white/10'}`}
     >
       Zoom &amp; pan
     </button>
   </div>
 );
 
-const Stat = ({ label, value }: { label: string; value: number | string }) => (
-  <div className="bg-white border border-gray-200 p-4 shadow-sm rounded-sm">
-    <div className="font-mono text-2xl font-bold text-black">{value}</div>
-    <div className="text-[10px] text-gray-500 uppercase tracking-wide">{label}</div>
-  </div>
-);
+// Numeric values animate counting up from zero on each new result (Idea 2:
+// "the pipeline feels alive and processing rather than just displaying
+// results") -- string values (e.g. "n/a", a formatted confidence) render
+// as-is, never coerced into a fake count-up.
+const Stat = ({ label, value }: { label: string; value: number | string }) => {
+  const isNumeric = typeof value === 'number';
+  const animated = useCountUp(isNumeric ? value : 0);
+  return (
+    <div className="bg-white border border-gray-200 dark:bg-white/[0.04] dark:backdrop-blur-md dark:border-white/10 p-4 shadow-sm rounded-sm">
+      <div className="font-mono text-2xl font-bold text-black dark:text-white tabular-nums">{isNumeric ? animated : value}</div>
+      <div className="text-[10px] text-gray-400 uppercase tracking-wide">{label}</div>
+    </div>
+  );
+};

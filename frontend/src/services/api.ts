@@ -11,9 +11,15 @@
 //     same named pipeline stages the real backend executes, instead of just swapping in a
 //     static object instantly.
 
+// 127.0.0.1, not 'localhost': uvicorn's default 0.0.0.0 bind is IPv4-only (no
+// [::]:8000 listener), and on Windows a browser's `localhost` frequently
+// resolves to ::1 (IPv6) first -- that connects to nothing and reads as
+// "backend unreachable" even though the real IPv4 listener is healthy and a
+// same-machine curl to `localhost` (which happens to resolve IPv4 first in a
+// shell) succeeds. 127.0.0.1 is unambiguous and matches the real socket.
 export const API_BASE =
   (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_BASE_URL) ||
-  'http://localhost:8000';
+  'http://127.0.0.1:8000';
 
 export interface RunParams {
   matcher?: 'classical' | 'deep' | 'auto';
@@ -155,7 +161,22 @@ export interface RunResultOk {
   run_dir_id?: string;
   refinement_stats?: { attempted: number; accepted: number; skipped_scale_guard: boolean };
   multi_scale_leveling?: any;
-  ingestion?: any;
+  // src_geometry/ref_geometry are a best-effort, label-derived dict (raw
+  // string values straight from whatever MAP_SCALE/MAP_RESOLUTION/
+  // resolution keyword the source label happened to carry -- see
+  // backend/pipeline/pds_readers.py). Frequently {} for plain-PNG preview
+  // uploads (no label at all to read), and NOT normalized to a common
+  // unit -- callers must not assume any particular key is present.
+  // Simulation mode (no real backend) stubs this to { simulated: true } --
+  // real fields are all optional so both shapes satisfy the same type
+  // rather than needing a separate union callers have to narrow.
+  ingestion?: {
+    src_format?: string; ref_format?: string;
+    src_original_shape?: [number, number]; ref_original_shape?: [number, number];
+    src_geometry?: Record<string, string>; ref_geometry?: Record<string, string>;
+    warnings?: string[];
+    simulated?: boolean;
+  };
   src_shape?: [number, number];
   ref_shape?: [number, number];
 }
@@ -190,6 +211,19 @@ export const PIPELINE_STAGES = [
   'Registration & warping',
   'Metrics & validation',
 ] as const;
+
+// Real, previously-measured aggregate findings from the sun-angle/scale/
+// rotation invariance test suite (backend/scripts/invariance_sweep.py,
+// see TASKS.md and pages/InvarianceAnalysis.tsx's own captions -- kept in
+// sync with those, not re-derived independently). These are aggregate,
+// cross-pair findings, not per-run data -- used only as fixed context for
+// the Groq Call 4 interpretation ("does THIS pair fall within limits
+// already measured across the dataset").
+export const INVARIANCE_FINDINGS = {
+  sunAngleInvarianceLimitDeg: 45, // 100% pass through 30 deg; first degradation (drops to 50%) at 45 deg
+  scaleInvarianceRange: '0.5x-2.0x, 100% pass rate',
+  rotationResult: 'terrain-dependent split: 2/3 source images tolerate rotation up to 90°, 1/3 fails at every nonzero rotation',
+};
 
 // ---------------------------------------------------------------------------
 // Real backend calls
@@ -254,6 +288,61 @@ export async function fetchMatchPoints(runId: string): Promise<MatchPoint[]> {
 
 export function outputUrl(runId: string, filename: string): string {
   return `${API_BASE}/api/runs/${runId}/${filename}`;
+}
+
+// ---------------------------------------------------------------------------
+// Real-time Groq (llama-3.3-70b-versatile) plain-language interpretation of
+// real pipeline metrics -- backend/pipeline/groq_interpret.py is the only
+// place GROQ_API_KEY is read; this frontend call never sees it, only the
+// resulting text (or an "unavailable" flag). See InterpretationCard.tsx for
+// how callers use this -- every failure mode (no key, network error, rate
+// limit) degrades to a quiet placeholder, never a thrown error surfaced to
+// the user.
+export interface InterpretResult {
+  available: boolean;
+  text?: string;
+}
+
+// In-memory cache, keyed by call_type + exact field payload -- a real run's
+// metrics don't change once computed, so re-rendering/remounting the same
+// InterpretationCard (step navigation, React re-render, dev-mode double
+// mount) reused to hit Groq again for the identical question. That's what
+// was actually driving the 429 "Too Many Requests" responses seen in the
+// backend log and the slow/failed cards on screen -- not a single call
+// being slow, but N redundant identical calls competing for the same
+// per-minute quota. Caches the in-flight promise too, so two cards that
+// mount in the same tick collapse into one real network call.
+const interpretCache = new Map<string, Promise<InterpretResult>>();
+
+export async function interpretMetrics(callType: 1 | 2 | 3 | 4 | 5, fields: Record<string, unknown>): Promise<InterpretResult> {
+  const cacheKey = `${callType}:${JSON.stringify(fields)}`;
+  const cached = interpretCache.get(cacheKey);
+  if (cached) return cached;
+
+  const promise = (async (): Promise<InterpretResult> => {
+    try {
+      const res = await fetch(`${API_BASE}/api/interpret`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ call_type: callType, ...fields }),
+      });
+      if (!res.ok) return { available: false };
+      return await res.json();
+    } catch (err) {
+      console.warn('Groq interpretation request failed:', err);
+      return { available: false };
+    }
+  })();
+  interpretCache.set(cacheKey, promise);
+  // A failed/unavailable result isn't cached beyond this run -- if Groq
+  // recovers (rate limit resets, key gets fixed) the next real run's fresh
+  // fields naturally bypass the cache anyway since the key changes with
+  // any metric change; but explicitly evict a failure so a transient 429
+  // doesn't stick as a false "unavailable" for the rest of this session.
+  promise.then((r) => {
+    if (!r.available) interpretCache.delete(cacheKey);
+  });
+  return promise;
 }
 
 // ---------------------------------------------------------------------------
@@ -326,6 +415,20 @@ const CHANDRAYAAN2_IMAGE_IDS = ['tmc2_20260803_0049', 'tmc2_20260809_1606', 'tmc
 export function chandrayaan2ImageIdForFilename(filename: string | null | undefined): string | null {
   if (!filename) return null;
   return CHANDRAYAAN2_IMAGE_IDS.find((id) => filename.includes(id)) ?? null;
+}
+
+// Real, deterministic filename-pattern sensor label -- NOT derived from any
+// per-file metadata (this project's own real NAC/PDS4 labels don't carry a
+// human-readable sensor name field), but from the same real, already-
+// established naming conventions this app's own real datasets use
+// (backend/data/real/chandrayaan2/tmc2_* and backend/data/real/lro_nac/M*LE|RE).
+// Returns null rather than guessing for anything that matches neither --
+// callers must show "sensor unknown", never fabricate one.
+export function sensorLabelForFilename(filename: string | null | undefined): string | null {
+  if (!filename) return null;
+  if (/tmc2_/i.test(filename)) return 'Chandrayaan-2 TMC-2';
+  if (/^M\d+(LE|RE)/i.test(filename) || /\bM\d+(LE|RE)\b/i.test(filename)) return 'LRO NAC';
+  return null;
 }
 
 // ---------------------------------------------------------------------------
