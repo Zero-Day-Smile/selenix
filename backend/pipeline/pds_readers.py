@@ -191,6 +191,17 @@ def read_pds3(path: str) -> PdsReadResult:
         warn_list.append("No MAP_SCALE/MAP_RESOLUTION/IMAGE_RESOLUTION keyword found in label — "
                           "no label-derived ground sample distance available for this product.")
 
+    # Real acquisition timestamp (standard PDS3 keyword) -- pvl parses it
+    # straight into a tz-aware datetime already. Not used by anything in
+    # this reader itself; exposed here so callers (orbital_geometry.py) can
+    # key real spacecraft-position lookups off it without a second, separate
+    # label parse. Absent, not guessed, if the label doesn't carry it.
+    if "START_TIME" in label:
+        try:
+            geometry["start_time"] = label["START_TIME"].isoformat()
+        except AttributeError:
+            geometry["start_time"] = str(label["START_TIME"])
+
     fmt = "pds3_detached" if external_target else "pds3_attached"
     return PdsReadResult(
         data=arr.astype(np.float32), format=fmt, lines=lines, samples=samples, bands=bands,
@@ -263,6 +274,24 @@ def read_pds4(xml_path: str) -> PdsReadResult:
                 geometry[key] = disc[key]
     except Exception:
         pass
+
+    # Real acquisition timestamp -- Product_Observational/Observation_Area/
+    # Time_Coordinates/start_date_time, confirmed present in real
+    # Chandrayaan-2 XML labels (e.g. tmc2_20260803_0049.xml). This lives
+    # outside array_struct.meta_data (which is scoped to the File_Area
+    # array, not the product-level Observation_Area), so it's parsed
+    # directly from the XML rather than relying on pds4_tools to surface
+    # it -- matched by local tag name only (ignoring the PDS4 namespace
+    # prefix) so this works regardless of which namespace URI a given
+    # label declares.
+    try:
+        import xml.etree.ElementTree as ET
+        tree = ET.parse(xml_path)
+        el = next((e for e in tree.iter() if e.tag.rsplit("}", 1)[-1] == "start_date_time"), None)
+        if el is not None and el.text:
+            geometry["start_time"] = el.text.strip()
+    except Exception as e:
+        warn_list.append(f"Could not parse start_date_time from PDS4 label ({e}).")
 
     return PdsReadResult(
         data=arr.astype(np.float32), format="pds4", lines=lines, samples=samples, bands=bands,

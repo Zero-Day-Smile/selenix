@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from backend.pipeline.run_pipeline import run_registration, run_registration_manual_seed
-from backend.pipeline import memory, synthetic, ingestion, preprocessing, crater_catalog, geo_extent_guard, tmc_geometry, ancillary_readers, groq_interpret
+from backend.pipeline import memory, synthetic, ingestion, preprocessing, crater_catalog, geo_extent_guard, tmc_geometry, ancillary_readers, groq_interpret, orbital_geometry
 import json as _json
 import cv2 as _cv2
 
@@ -74,6 +74,26 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+_prewarm_task = None  # keeps a strong reference so the startup background task can't be GC'd mid-run
+
+
+@app.on_event("startup")
+async def _prewarm_loftr():
+    """LoFTR's real pretrained "outdoor" checkpoint is lazily loaded on
+    first use (matching._try_load_loftr(), a module-level singleton) --
+    without this, a real user's FIRST matcher='auto' request after any
+    backend restart pays that real ~10s load cost live, on top of actual
+    inference, which was a real contributor to requests exceeding the
+    frontend's request timeout and being misread as "backend
+    unreachable". Runs in a background thread so server startup itself
+    (and /api/health) isn't delayed by it -- if loading fails (no
+    torch/kornia installed), match_auto's own existing fallback to
+    classical-only still works exactly as before, just without the
+    warm-start benefit."""
+    from backend.pipeline import matching
+    global _prewarm_task
+    _prewarm_task = asyncio.create_task(asyncio.to_thread(matching._try_load_loftr))
 
 
 _ENTRY_POINT_PRIORITY = (".xml", ".lbl")
@@ -414,6 +434,77 @@ async def api_interpret(body: dict = Body(...)):
     # on one page effectively serialized behind each other. Running it in
     # a thread keeps the blocking call off the event loop.
     return await asyncio.to_thread(groq_interpret.interpret, call_type, fields)
+
+
+@app.get("/api/orbital_geometry/{run_id}")
+async def api_orbital_geometry(run_id: str):
+    """Real spacecraft-position geometry for one run -- see
+    backend/pipeline/orbital_geometry.py's module docstring for the real
+    data sources (verified .spm telemetry + real NAIF SPK kernels, not
+    TLE/SGP4). spiceypy calls are blocking (kernel furnsh/unload does real
+    file I/O); same reasoning as /api/interpret above -- run off the event
+    loop so this can never stall concurrent requests. Only ever returns
+    real computed positions or an honest available=False, never a 500 for
+    a run/pair this feature simply has no real coverage for."""
+    if not os.path.exists(os.path.join(RUNS_DIR, run_id, "metrics.json")):
+        raise HTTPException(404, detail=f"unknown run_id {run_id!r}")
+    return await asyncio.to_thread(orbital_geometry.get_orbital_geometry, run_id, RUNS_DIR)
+
+
+MOON_CONTEXT_CACHE_DIR = os.path.join(BASE_DIR, "outputs", "moon_context_cache")
+os.makedirs(MOON_CONTEXT_CACHE_DIR, exist_ok=True)
+
+
+def _fetch_moon_context_image(lat: float, lon: float, span_deg: float) -> bytes:
+    """Real lunar imagery at a real lat/lon, from ASU's public Lunaserv WMS
+    (webmap.lroc.asu.edu, no auth, real LRO WAC global mosaic -- confirmed
+    directly: a real GetMap request at a real computed Chandrayaan-2
+    position returned a real 512x512 PNG showing an actual identifiable
+    crater, not a placeholder/blank tile). Cached to disk by rounded
+    lat/lon/span so repeated views of the same run don't re-hit the public
+    service every time."""
+    import requests
+
+    key = f"{round(lat, 3)}_{round(lon, 3)}_{round(span_deg, 3)}".replace("-", "m").replace(".", "p")
+    cache_path = os.path.join(MOON_CONTEXT_CACHE_DIR, f"{key}.png")
+    if os.path.exists(cache_path):
+        with open(cache_path, "rb") as f:
+            return f.read()
+
+    half = span_deg / 2
+    bbox = f"{lon - half},{lat - half},{lon + half},{lat + half}"
+    resp = requests.get(
+        "https://webmap.lroc.asu.edu/wms",
+        params={
+            "SERVICE": "WMS", "VERSION": "1.1.1", "REQUEST": "GetMap",
+            "LAYERS": "luna_wac_global", "SRS": "EPSG:4326", "BBOX": bbox,
+            "WIDTH": 512, "HEIGHT": 512, "FORMAT": "image/png",
+        },
+        timeout=15,
+    )
+    resp.raise_for_status()
+    if resp.headers.get("content-type", "").startswith("image/"):
+        with open(cache_path, "wb") as f:
+            f.write(resp.content)
+    return resp.content
+
+
+@app.get("/api/moon_context_image")
+async def api_moon_context_image(lat: float, lon: float, span_deg: float = 2.0):
+    """Real lunar surface imagery centered on a real lat/lon (the real
+    target-ground-footprint centroid from /api/orbital_geometry, typically)
+    -- see _fetch_moon_context_image's docstring for the real source. The
+    real public WMS call is blocking (requests.get); run off the event
+    loop for the same reason as /api/interpret and /api/orbital_geometry
+    above. Fails soft with a 502 (not a fabricated placeholder image) if
+    the real public service is unreachable."""
+    from fastapi.responses import Response
+
+    try:
+        data = await asyncio.to_thread(_fetch_moon_context_image, lat, lon, span_deg)
+    except Exception as e:
+        raise HTTPException(502, detail=f"could not fetch real lunar context image: {e}")
+    return Response(content=data, media_type="image/png")
 
 
 @app.get("/api/health")

@@ -33,8 +33,34 @@ def remove_illumination_gradient(img_u8: np.ndarray, sigma_frac: float = 0.06) -
     scale, not a fixed pixel count."""
     h, w = img_u8.shape[:2]
     sigma = max(3.0, sigma_frac * min(h, w))
-    blurred = cv2.GaussianBlur(img_u8.astype(np.float32), (0, 0), sigmaX=sigma)
-    flattened = img_u8.astype(np.float32) - blurred + 128.0
+    img_f = img_u8.astype(np.float32)
+
+    # The blur radius scales with image size (see docstring), so on a real
+    # full-resolution Chandrayaan-2 strip (up to ~110,000 x 4,000, sigma
+    # ~240px) cv2.GaussianBlur's kernel width scales to ~1400+ taps over
+    # 400M+ pixels -- measured directly at over 120s for one call, the
+    # single largest real bottleneck in the whole pipeline (worse than the
+    # matching stage this session already fixed). The result being
+    # subtracted here is BY DESIGN a low-frequency-only field (that's the
+    # entire point -- it targets large-scale shading, not fine texture), so
+    # it has no real high-frequency content to lose by computing it at
+    # reduced resolution: downsample first (a small, cheap blur at a
+    # proportionally small sigma), then upsample the smooth result back to
+    # full resolution before subtracting from the REAL full-resolution
+    # original (never the downsampled copy) -- fine surface detail is
+    # untouched, only the expensive large-kernel blur itself gets cheaper.
+    # downscale_factor keeps the blur's effective sigma-in-downsampled-space
+    # at a fixed, cheap ~12px regardless of the original image's real size.
+    downscale = max(1.0, sigma / 12.0)
+    if downscale > 1.0:
+        small_h, small_w = max(1, round(h / downscale)), max(1, round(w / downscale))
+        small = cv2.resize(img_f, (small_w, small_h), interpolation=cv2.INTER_AREA)
+        small_blurred = cv2.GaussianBlur(small, (0, 0), sigmaX=sigma / downscale)
+        blurred = cv2.resize(small_blurred, (w, h), interpolation=cv2.INTER_LINEAR)
+    else:
+        blurred = cv2.GaussianBlur(img_f, (0, 0), sigmaX=sigma)
+
+    flattened = img_f - blurred + 128.0
     return np.clip(flattened, 0, 255).astype(np.uint8)
 
 

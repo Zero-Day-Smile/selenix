@@ -35,11 +35,17 @@ def _kp_from_serializable(data):
 
 
 def detect_features_cached(img_u8: np.ndarray, file_hash: str, method: str = "sift"):
-    """Per-image feature detection with a disk cache keyed by file hash + method,
-    so repeat processing of the same source/reference image doesn't recompute
-    SIFT/ORB from scratch."""
+    """Per-image feature detection with a disk cache keyed by file hash +
+    method + the actual working resolution passed in, so repeat processing
+    of the same source/reference image doesn't recompute SIFT/ORB from
+    scratch. The working-resolution component is real, not decorative: it's
+    what makes a stale cache entry from before match_classical's max_side
+    downsample was added (this session) correctly MISS rather than being
+    silently reused as if it were the new downsampled-coordinate-space
+    features -- which would have double-scaled every keypoint on first
+    reuse for any file processed before this fix."""
     from . import memory
-    key = memory.cache_key(file_hash, {"method": method, "stage": "features"})
+    key = memory.cache_key(file_hash, {"method": method, "stage": "features", "shape": img_u8.shape[:2]})
     cached = memory.cache_get(key)
     if cached is not None:
         kp_data, des = cached
@@ -56,16 +62,55 @@ def detect_features_cached(img_u8: np.ndarray, file_hash: str, method: str = "si
 
 def match_classical(src_u8: np.ndarray, ref_u8: np.ndarray, method: str = "sift",
                      ratio: float = 0.75, src_hash: str | None = None,
-                     ref_hash: str | None = None) -> MatchResult:
+                     ref_hash: str | None = None, max_side: int = 4000) -> MatchResult:
+    """`max_side`: real Chandrayaan-2/LRO products can run to 147,741px on
+    their long axis (a pushbroom strip's along-track length, not useful
+    detail density) -- SIFT's detectAndCompute cost scales with pixel count,
+    so running it at native resolution on a real full-size upload is
+    genuinely slow (minutes, not seconds) for no matching-quality benefit
+    beyond what a much smaller working resolution already captures (the
+    existing multi-scale `level_for_matching` step already establishes that
+    downsampling for matching doesn't hurt inlier ratio). Each image is
+    independently downsampled (preserving aspect ratio) only if its own
+    longer side exceeds max_side, features are detected on the downsampled
+    copy, and keypoint coordinates are rescaled back to that image's own
+    original resolution before returning -- RANSAC/refinement/output all
+    still operate in true full-resolution coordinates, unaffected. Same
+    pattern already used for LoFTR's max_side=840 cap below (added earlier
+    for a real OOM bug); 4000 here is far more generous since classical
+    SIFT needs more real resolution than LoFTR's dense coarse-matching stage
+    to stay useful."""
     norm = cv2.NORM_L2 if method == "sift" else cv2.NORM_HAMMING
 
+    def _prep(img: np.ndarray) -> tuple[np.ndarray, float]:
+        h, w = img.shape[:2]
+        scale = min(1.0, max_side / max(h, w))
+        if scale >= 1.0:
+            return img, 1.0
+        small = cv2.resize(img, (max(1, round(w * scale)), max(1, round(h * scale))), interpolation=cv2.INTER_AREA)
+        return small, scale
+
+    src_small, src_scale = _prep(src_u8)
+    ref_small, ref_scale = _prep(ref_u8)
+
     if src_hash and ref_hash:
-        kp1, des1 = detect_features_cached(src_u8, src_hash, method)
-        kp2, des2 = detect_features_cached(ref_u8, ref_hash, method)
+        # Cache key already includes file_hash+method; the working
+        # resolution here is a deterministic function of the file itself
+        # (same real file always downsamples to the same size), so this
+        # stays correct without also encoding max_side into the key.
+        kp1, des1 = detect_features_cached(src_small, src_hash, method)
+        kp2, des2 = detect_features_cached(ref_small, ref_hash, method)
     else:
         detector = cv2.SIFT_create(nfeatures=8000) if method == "sift" else cv2.ORB_create(nfeatures=8000)
-        kp1, des1 = detector.detectAndCompute(src_u8, None)
-        kp2, des2 = detector.detectAndCompute(ref_u8, None)
+        kp1, des1 = detector.detectAndCompute(src_small, None)
+        kp2, des2 = detector.detectAndCompute(ref_small, None)
+
+    if src_scale != 1.0 and kp1:
+        for k in kp1:
+            k.pt = (k.pt[0] / src_scale, k.pt[1] / src_scale)
+    if ref_scale != 1.0 and kp2:
+        for k in kp2:
+            k.pt = (k.pt[0] / ref_scale, k.pt[1] / ref_scale)
 
     if des1 is None or des2 is None or len(kp1) < 4 or len(kp2) < 4:
         return MatchResult(np.empty((0, 2), np.float32), np.empty((0, 2), np.float32),

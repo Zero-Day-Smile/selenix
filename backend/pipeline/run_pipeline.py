@@ -84,6 +84,33 @@ def _save_ssim_heatmap(ref_u8: np.ndarray, warped_u8: np.ndarray, H: np.ndarray,
             "data_json_path": data_path}
 
 
+# Piecewise-affine and TPS warps are computed purely for VISUAL comparison
+# alongside the global homography -- the quantitative RMSE this project
+# reports is always the global-homography number regardless (see
+# README.md "Known limitations": a true forward-projected piecewise RMSE
+# needs per-triangle inverse mapping, not implemented). Measured directly
+# on a real ~4150x6130 registered pair: piecewise warp alone took 40.5s,
+# TPS warp another 18.5s -- ~59s of a ~74s total run, by far the single
+# largest real cost in the whole pipeline, for two outputs nothing
+# downstream actually depends on numerically. Above this pixel-area
+# threshold both are skipped; callers already treat warp_piece/warp_tps_res
+# as optional (None is a long-handled, real case -- see registered_*_path
+# handling below), so this doesn't change any other behavior.
+PIECEWISE_TPS_MAX_PIXELS = 6_000_000
+
+
+def _warp_piece_and_tps(src_proc, refined_src, inlier_ref, ref_shape):
+    area = ref_shape[0] * ref_shape[1]
+    if area > PIECEWISE_TPS_MAX_PIXELS:
+        reason = (f"skipped (reference image {ref_shape[1]}x{ref_shape[0]} = {area/1e6:.1f}MP exceeds the "
+                   f"{PIECEWISE_TPS_MAX_PIXELS/1e6:.0f}MP threshold -- these are visual-comparison-only "
+                   f"warps, measured at real minutes-scale cost on images this large for no metric benefit)")
+        return None, None, reason
+    warp_piece = registration.warp_piecewise(src_proc, refined_src, inlier_ref, ref_shape)
+    warp_tps_res = registration.warp_tps(src_proc, refined_src, inlier_ref, ref_shape)
+    return warp_piece, warp_tps_res, None
+
+
 def _detect_craters_safe(image_path: str) -> dict:
     """Real YOLOv8 crater detection (backend/pipeline/crater_detector.py),
     run against the SAME processed image file (src_processed.png /
@@ -210,7 +237,21 @@ def run_registration(src_path: str, ref_path: str, out_dir: str,
             "reason": "Homography estimation failed (insufficient matches or degenerate configuration).",
             "total_matches": int(len(match_res.src_pts)),
             "matcher_used": match_res.matcher_used,
+            "src_path": src_path,
+            "ref_path": ref_path,
+            "src_geometry": src_img.geometry,
+            "ref_geometry": ref_img.geometry,
         }
+        # Real cross-sensor Chandrayaan-2/LRO pairs on ordinary terrain
+        # essentially always fail here (patch-scale crater self-similarity
+        # -- see TASKS.md's extensive documentation of this finding), which
+        # would otherwise mean metrics.json is never written for exactly
+        # the pairs orbital_geometry.py's panel exists to explain. Persist
+        # this minimal result (real src/ref paths + geometry, no
+        # fabricated match/registration data) so that feature still has
+        # something real to read for a failed run, not just successful ones.
+        with open(os.path.join(out_dir, "metrics.json"), "w") as f:
+            json.dump(result, f, indent=2)
         return result
 
     scale_refined = preprocessing.refine_scale_from_homography(geo.H)
@@ -250,8 +291,9 @@ def run_registration(src_path: str, ref_path: str, out_dir: str,
     }
 
     warp_global = registration.warp_global_homography(src_proc, H_final, ref_proc.shape)
-    warp_piece = registration.warp_piecewise(src_proc, refined_src, inlier_ref, ref_proc.shape)
-    warp_tps_res = registration.warp_tps(src_proc, refined_src, inlier_ref, ref_proc.shape)
+    warp_piece, warp_tps_res, warp_piece_tps_skip_reason = _warp_piece_and_tps(
+        src_proc, refined_src, inlier_ref, ref_proc.shape
+    )
 
     rotation_consistency = metrics.pairwise_rotation_consistency(match_res.src_pts, match_res.ref_pts)
     validation = metrics.assess_validation(
@@ -346,6 +388,7 @@ def run_registration(src_path: str, ref_path: str, out_dir: str,
         "matcher_used": match_res.matcher_used,
         "matcher_selection": matcher_summary,
         "geometry_method": geo.method,
+        "piecewise_tps_skip_reason": warp_piece_tps_skip_reason,
         "total_matches": n_total,
         "inlier_count": n_inliers,
         "inlier_ratio": round(inlier_ratio, 4),
@@ -521,8 +564,9 @@ def run_registration_manual_seed(src_path: str, ref_path: str, out_dir: str,
     }
 
     warp_global = registration.warp_global_homography(src_proc, H_final, ref_proc.shape)
-    warp_piece = registration.warp_piecewise(src_proc, refined_src, inlier_ref, ref_proc.shape)
-    warp_tps_res = registration.warp_tps(src_proc, refined_src, inlier_ref, ref_proc.shape)
+    warp_piece, warp_tps_res, warp_piece_tps_skip_reason = _warp_piece_and_tps(
+        src_proc, refined_src, inlier_ref, ref_proc.shape
+    )
 
     rotation_consistency = metrics.pairwise_rotation_consistency(src_pts, ref_pts)
     validation = metrics.assess_validation(
@@ -580,6 +624,7 @@ def run_registration_manual_seed(src_path: str, ref_path: str, out_dir: str,
         "sensor_type": sensor_type,
         "matcher_used": "manual_seed",
         "geometry_method": geo.method,
+        "piecewise_tps_skip_reason": warp_piece_tps_skip_reason,
         "total_matches": len(seed_points),
         "inlier_count": n_inliers,
         "inlier_ratio": round(n_inliers / len(seed_points), 4),
