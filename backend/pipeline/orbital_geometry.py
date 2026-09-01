@@ -43,7 +43,7 @@ from datetime import datetime, timezone
 import numpy as np
 import spiceypy as sp
 
-from . import ancillary_readers, known_real_images
+from . import ancillary_readers, geo_extent_guard, known_real_images
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SPICE_GENERIC_DIR = os.path.join(BASE_DIR, "data", "spice_kernels")
@@ -97,6 +97,92 @@ def _kml_center(kml_path: str) -> tuple[float, float] | None:
         return None
     lon, lat = float(parts[0]), float(parts[1])
     return lon % 360, lat
+
+
+def _ch2_footprint_corners(geom_csv_path: str) -> list[list[float]] | None:
+    """Real 4-corner footprint from this product's own real per-pixel
+    geometry.csv -- the four rows at (min/max Scan) x (min/max Pixel), in
+    winding order, not an axis-aligned bounding box (a pushbroom strip can
+    be rotated relative to lon/lat, so its real corners aren't necessarily
+    at the lon/lat extremes). Returns [[lat, lon], ...] x4, or None if the
+    file doesn't exist or has no rows."""
+    if not os.path.exists(geom_csv_path):
+        return None
+    try:
+        rows = geo_extent_guard.load_tmc_geometry(geom_csv_path)
+    except Exception:
+        return None
+    if not rows:
+        return None
+    scans = [r[0] for r in rows]
+    pixels = [r[1] for r in rows]
+    scan_min, scan_max = min(scans), max(scans)
+    pixel_min, pixel_max = min(pixels), max(pixels)
+
+    def nearest(target_scan, target_pixel):
+        return min(rows, key=lambda r: (r[0] - target_scan) ** 2 + (r[1] - target_pixel) ** 2)
+
+    corners_rc = [
+        (scan_min, pixel_min), (scan_min, pixel_max),
+        (scan_max, pixel_max), (scan_max, pixel_min),
+    ]
+    out = []
+    for sc, px in corners_rc:
+        _, _, lon, lat = nearest(sc, px)
+        out.append([lat, lon % 360])
+    return out
+
+
+def _nac_footprint_corners(kml_path: str) -> list[list[float]] | None:
+    """Real 4-corner footprint from this product's own real ODE-published
+    KML <LinearRing> -- the actual polygon corners, not a recomputed
+    bounding box. Returns [[lat, lon], ...], or None if unavailable."""
+    try:
+        tree = ET.parse(kml_path)
+    except Exception:
+        return None
+    ns = {"k": "http://www.opengis.net/kml/2.2"}
+    ring = tree.find(".//k:LinearRing/k:coordinates", ns)
+    if ring is None or not ring.text:
+        return None
+    out = []
+    for line in ring.text.strip().split():
+        parts = line.split(",")
+        if len(parts) < 2:
+            continue
+        lon, lat = float(parts[0]), float(parts[1])
+        out.append([lat, lon % 360])
+    return out or None
+
+
+def get_real_footprint_for_path(path: str) -> list[list[float]] | None:
+    """Real 4-corner footprint ([[lat, lon], ...] x4) for one image path, if
+    it matches a known real Chandrayaan-2 or LRO NAC product on disk by
+    filename -- the same id-matching this module's get_orbital_geometry()
+    loop already does per-side, factored out so a caller that needs both
+    sides' footprints independently (the geographic-overlap pre-matching
+    gate in run_pipeline.py) doesn't have to re-derive that matching logic.
+    Returns None (not a guess) if this path doesn't match a known real
+    product, or the matched product has no footprint source on disk (e.g.
+    an LRO NAC id with no real KML downloaded)."""
+    basename = os.path.basename(path)
+
+    matched_ch2_id = known_real_images.match_chandrayaan2_id(basename)
+    if matched_ch2_id:
+        geom_csv = os.path.join(CHANDRAYAAN2_DIR, matched_ch2_id, f"{matched_ch2_id}_geometry.csv")
+        fp = _ch2_footprint_corners(geom_csv)
+        if fp:
+            return fp
+
+    nac_id = known_real_images.match_lro_nac_id(basename)
+    if nac_id is None and os.path.isdir(LRO_NAC_DIR):
+        nac_id = next((i for i in os.listdir(LRO_NAC_DIR) if i in basename), None)
+    if nac_id:
+        kml_path = os.path.join(LRO_NAC_DIR, nac_id, f"{nac_id}_xml.kml")
+        if os.path.exists(kml_path):
+            return _nac_footprint_corners(kml_path)
+
+    return None
 
 
 def _latlon_to_moon_me_xyz(lon_deg: float, lat_deg: float, radius_km: float = MOON_RADIUS_KM) -> np.ndarray:
@@ -278,6 +364,7 @@ def get_orbital_geometry(run_id: str, runs_dir: str) -> dict:
     lro_out = {"available": False, "reason": "not a known real LRO NAC image"}
     ch2_id = ref_id = None
     target_latlon = None
+    footprint = None  # real [[lat, lon], ...] x4, whichever real side has it
 
     for path, geom in ((src_path, src_geom), (ref_path, ref_geom)):
         basename = os.path.basename(path)
@@ -301,6 +388,8 @@ def get_orbital_geometry(run_id: str, runs_dir: str) -> dict:
                 rows = np.genfromtxt(geom_csv, delimiter=",", skip_header=1)
                 if rows.size:
                     target_latlon = (float(np.mean(rows[:, 0])) % 360, float(np.mean(rows[:, 1])))
+            if footprint is None:
+                footprint = _ch2_footprint_corners(geom_csv)
             continue
 
         # known_real_images.LRO_NAC_IMAGE_IDS is curated for a different
@@ -320,6 +409,8 @@ def get_orbital_geometry(run_id: str, runs_dir: str) -> dict:
                 center = _kml_center(kml_path)
                 if center:
                     target_latlon = center
+            if footprint is None and os.path.exists(kml_path):
+                footprint = _nac_footprint_corners(kml_path)
 
     sun_angle_ch2 = None
     if ch2_id:
@@ -365,4 +456,10 @@ def get_orbital_geometry(run_id: str, runs_dir: str) -> dict:
         # actual real location (see /api/moon_context_image in main.py).
         "target_lat": target_latlon[1] if target_latlon else None,
         "target_lon": target_latlon[0] if target_latlon else None,
+        # Real 4-corner footprint polygon ([[lat, lon], ...] x4) -- from
+        # the real matched CH2 geometry.csv (preferred, since it's the
+        # side whose real per-pixel positions we actually have) or the
+        # real matched NAC KML footprint otherwise. None if neither side
+        # matched a real product with real footprint data.
+        "footprint": footprint,
     }

@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"
+ xmlns:gx="https://developers.google.com/kml/?csw=1">
+<Document>
+<name>PDS Orbital Data Explorer - PDS Product Coverage</name>
+<description>
+  <![CDATA[
+NASA's Planetary Data System Geosciences Node Product Coverage KML file<br>
+  This is the product coverage for 
+<ul>
+   <li>Product id: data.nac.m1342582517le</li>
+   <li>Instrument host id: LRO</li>
+   <li>Instrument id: LROC</li>
+   <li>Target body: MOON</li>
+   <li>Planetocentric latitudes </li>
+   <li>Generated from PDS Geosciences Orbital Data Explorer on 2023-03-29T03:47:45.123</li>
+ <li>Links: 
+<ul>
+   <li><a href="https://pds.jpl.nasa.gov/">NASA Planetary Data System</a></li>
+   <li><a href="https://pds-geosciences.wustl.edu/">Geosciences Node</li></a>
+   <li><a href="https://ode.rsl.wustl.edu/">Orbital Data Explorer</li></a>
+   <li><a href="https://ode.rsl.wustl.edu/moon/indexproductpage.aspx?product_id=data.nac.m1342582517le">Product link</a></li>
+</li></li></ul></ul>
+  ]]>
+</description>
+<Style id="highlightPlacemark">
+  <IconStyle>
+    <Icon>
+      <href>http://maps.google.com/mapfiles/kml/paddle/red-stars.png</href>
+    </Icon>
+  </IconStyle>
+  <LabelStyle>
+    <scale>1</scale>
+  </LabelStyle>
+  <LineStyle>
+      <color>ffff00ff</color>
+  </LineStyle>
+  <PolyStyle>
+    <color>ffff00ff</color>
+  </PolyStyle>
+</Style>
+<Style id="normalPlacemark">
+  <IconStyle>
+    <Icon>
+      <href>https://maps.google.com/mapfiles/kml/paddle/red-blank.png</href>
+    </Icon>
+  </IconStyle>
+  <LabelStyle>
+    <scale>0</scale>
+  </LabelStyle>
+  <LineStyle>
+      <color>ffffff00</color>
+  </LineStyle>
+  <PolyStyle>
+    <color>ffffff00</color>
+  </PolyStyle>
+</Style>
+<StyleMap id="hightlightStyleMap">
+  <Pair>
+    <key>normal</key>
+    <styleUrl>#normalPlacemark</styleUrl>
+  </Pair>
+  <Pair>
+    <key>highlight</key>
+    <styleUrl>#highlightPlacemark</styleUrl>
+  </Pair>
+</StyleMap>
+
+<Placemark>
+  <name>data.nac.m1342582517le</name>
+  <description>
+    <![CDATA[
+      PDS Product Coverage for:  </br>
+        <a href="https://ode.rsl.wustl.edu/moon/indexproductpage.aspx?product_id=data.nac.m1342582517le">
+        Product: data.nac.m1342582517le
+        </a>
+        </br>Mission: LRO
+        </br>Instrument: LROC
+        </br>Product Type: EDRNAC4
+      </br>Links:</br>
+      <a href="https://pds.nasa.gov/">NASA Planetary Data System</a></br>
+      <a href="https://pds-geosciences.wustl.edu/">Geosciences Node's</a></br>
+      <a href="https://ode.rsl.wustl.edu/moon/">Orbital Data Explorer</a></br>
+    ]]>
+  </description>
+  <LookAt>
+    <latitude>-40.255</latitude>
+    <longitude>154.3002</longitude>
+    <altitude>1000000.0</altitude>
+  </LookAt>
+  <visibility>1</visibility>
+  <open>0</open>
+  <styleUrl>#hightlightStyleMap</styleUrl>
+  <MultiGeometry>
+    <Point>
+      <coordinates>
+      154.3002,-40.255,100
+      </coordinates>
+    </Point>
+    <LinearRing>
+      <extrude>0</extrude>
+      <tessellate>1</tessellate>
+      <altitudeMode>clampToGround</altitudeMode>
+      <coordinates>
+      154.38,-40.11,100
+      154.41,-40.38,100
+      154.22,-40.4,100
+      154.19,-40.13,100
+      154.38,-40.11,100
+       </coordinates>
+    </LinearRing>
+  </MultiGeometry>
+</Placemark>
+</Document>
+</kml>

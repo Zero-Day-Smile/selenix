@@ -15,6 +15,7 @@ import numpy as np
 from skimage.metrics import structural_similarity
 
 from . import ingestion, preprocessing, matching, geometry, registration, refinement, metrics, memory, shadow
+from . import geo_extent_guard, orbital_geometry
 
 
 def _save_ssim_heatmap(ref_u8: np.ndarray, warped_u8: np.ndarray, H: np.ndarray,
@@ -178,6 +179,36 @@ def run_registration(src_path: str, ref_path: str, out_dir: str,
           f"dtype={src_img.dtype} geometry={src_img.geometry}")
     print(f"[ingestion] reference: format={ref_img.source_format} shape={ref_img.original_shape} "
           f"dtype={ref_img.dtype} geometry={ref_img.geometry}")
+
+    # Geographic-overlap gate: run BEFORE any matching, so a pair with no
+    # real shared ground can never reach the matcher and produce a
+    # meaningless-but-plausible-looking result. Added after a real mistake
+    # found during development -- see geo_extent_guard.py's module
+    # docstring for the ~97deg/~2,947km pair that slipped through
+    # unchecked. Only fires when BOTH sides match a known real product with
+    # real footprint data on disk (a geometry.csv for Chandrayaan-2, a real
+    # KML for LRO NAC) -- an arbitrary/uploaded image with no such geometry
+    # has nothing to check against, so it proceeds ungated, same as today.
+    src_footprint = orbital_geometry.get_real_footprint_for_path(src_path)
+    ref_footprint = orbital_geometry.get_real_footprint_for_path(ref_path)
+    if src_footprint and ref_footprint:
+        overlap = geo_extent_guard.check_footprint_overlap(src_footprint, ref_footprint)
+        print(f"[geo-overlap-gate] overlaps={overlap['overlaps']} ({overlap['reason']})")
+        if not overlap["overlaps"]:
+            result = {
+                "status": "failed",
+                "reason": overlap["reason"],
+                "separation_km": overlap["separation_km"],
+                "src_path": src_path,
+                "ref_path": ref_path,
+                "src_geometry": src_img.geometry,
+                "ref_geometry": ref_img.geometry,
+                "src_footprint": src_footprint,
+                "ref_footprint": ref_footprint,
+            }
+            with open(os.path.join(out_dir, "metrics.json"), "w") as f:
+                json.dump(result, f, indent=2)
+            return result
 
     scale_est = preprocessing.estimate_scale_factor(src_img.original_shape, ref_img.original_shape)
 

@@ -145,6 +145,21 @@ MAGSAC++ inliers). Coordinates are in `src_processed.png`/`ref_processed.png` pi
 
 1. **Ingestion** (`pipeline/ingestion.py`) — loads PNG/TIFF/PDS3/PDS4, converts to uint8 via
    percentile stretch
+1.5. **Geographic-overlap gate** (`pipeline/geo_extent_guard.py::check_footprint_overlap`) — runs
+   immediately after ingestion, before any preprocessing/matching. If both images match a known
+   real product with real footprint geometry on disk (a `geometry.csv` for Chandrayaan-2, a real
+   KML for LRO NAC), their footprints are tested for real polygon intersection — not a centroid-
+   distance threshold, which isn't sufficient (two footprints ~30km apart by centroid can still be
+   non-touching adjacent strips). No overlap → the run fails immediately with
+   `"no geographic overlap: footprints are ~Xkm apart"`, before wasting any time on matching. Added
+   after a real mistake found during development: a pair used for most of a working session
+   (`tmc2_20260812_0506` x `M1412862267LE`) turned out to be ~97deg / ~2,947km apart — nowhere near
+   overlapping — because nothing checked real footprint geometry before it was picked as a
+   "cross-sensor test case". An image with no matched real footprint geometry (most arbitrary
+   uploads) has nothing to check against and proceeds ungated, same as before this gate existed.
+   `backend/scripts/check_pair_overlap.py` exposes the same check standalone, for screening
+   candidate pairs before they're ever uploaded; `backend/scripts/sanity_check_overlap_gate.py`
+   verifies it against pairs we already have real ground truth for.
 2. **Illumination normalization** (`pipeline/preprocessing.py`) — shading removal (default), CLAHE,
    or both
 3. **Multi-scale leveling** — downsamples the finer image toward the coarser one's apparent

@@ -18,6 +18,24 @@ geometry-CSV candidate point's bilinear fit residual against the NAC
 quadrilateral, keeps only the genuinely-inside ones, and derives the TMC
 crop bounds from *those* — plus reports both frames' real ground extents
 so a mismatch is visible and auditable, not silently wrong.
+
+`check_footprint_overlap()` is a second, more basic guard, added after a
+real mistake found during development: pairs were being handed to the
+matcher without ever checking whether they shared any ground at all. One
+pair used as a "cross-sensor test case" for most of a working session
+turned out to be ~97 degrees / ~2,947km apart on the Moon — nowhere near
+overlapping — because nothing checked real footprint geometry before the
+pair was selected. Unlike `verified_overlap_extent()` (which needs a full
+TMC-2 per-pixel geometry.csv plus an NAC frame's line/sample counts, and
+answers "how much of this crop is usable"), this one only needs the two
+images' generic 4-corner footprints — the same [[lat, lon], ...] x4 shape
+`orbital_geometry.py` already computes for the map panel — and answers a
+cheaper, earlier question: "do these two frames touch at all?" It's meant
+to run before *every* pair reaches the matcher, not just TMC/NAC pairs
+with full geometry.csv data. A close centroid distance is deliberately not
+used as the test: two footprints ~30km apart by centroid can still be
+non-touching adjacent strips, so this does real polygon intersection
+instead.
 """
 from __future__ import annotations
 
@@ -132,3 +150,143 @@ def verified_overlap_extent(tmc_geom_csv: str, nac_corners: list, nac_lines: int
         nac_frame_extent_km=(nac_along_km, nac_cross_km),
         extent_mismatch=mismatch, extent_mismatch_detail=detail.strip(),
     )
+
+
+# ---------------------------------------------------------------------------
+# check_footprint_overlap() and its plane-geometry helpers.
+#
+# Footprints here are small (at most a few degrees across) real satellite
+# ground tracks, so an equirectangular local-tangent-plane projection
+# (longitude scaled by cos(reference latitude)) is accurate enough to decide
+# "do these touch" and to report a real separation distance in km — no need
+# for a full spherical-polygon library or a new dependency (shapely isn't
+# installed in this project; this problem doesn't need it).
+# ---------------------------------------------------------------------------
+
+def _unwrap_lon(lon_deg: float, ref_lon_deg: float) -> float:
+    """Shifts lon_deg by a multiple of 360 so it lands within 180 degrees of
+    ref_lon_deg -- otherwise two real footprints that are actually adjacent
+    across the 0/360 seam would look ~360 degrees apart instead of ~0."""
+    return ref_lon_deg + ((lon_deg - ref_lon_deg + 180) % 360 - 180)
+
+
+def _footprint_to_local_km(footprint: list, ref_lat: float, ref_lon: float) -> list:
+    """[[lat, lon], ...] -> [(x_km, y_km), ...] on a local tangent plane
+    centered at (ref_lat, ref_lon)."""
+    cos_ref = np.cos(np.radians(ref_lat))
+    pts = []
+    for lat, lon in footprint:
+        lon_u = _unwrap_lon(lon, ref_lon)
+        x_km = (lon_u - ref_lon) * MOON_KM_PER_DEG * cos_ref
+        y_km = (lat - ref_lat) * MOON_KM_PER_DEG
+        pts.append((x_km, y_km))
+    return pts
+
+
+def _cross(o, a, b) -> float:
+    return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+
+
+def _on_segment(p, a, b) -> bool:
+    return (min(a[0], b[0]) - 1e-9 <= p[0] <= max(a[0], b[0]) + 1e-9 and
+            min(a[1], b[1]) - 1e-9 <= p[1] <= max(a[1], b[1]) + 1e-9)
+
+
+def _segments_intersect(a1, a2, b1, b2) -> bool:
+    """Standard orientation-based segment intersection test, including the
+    collinear/touching edge cases (real footprint corners can legitimately
+    share an edge)."""
+    d1, d2 = _cross(b1, b2, a1), _cross(b1, b2, a2)
+    d3, d4 = _cross(a1, a2, b1), _cross(a1, a2, b2)
+    if ((d1 > 0 and d2 < 0) or (d1 < 0 and d2 > 0)) and \
+       ((d3 > 0 and d4 < 0) or (d3 < 0 and d4 > 0)):
+        return True
+    if abs(d1) < 1e-9 and _on_segment(a1, b1, b2):
+        return True
+    if abs(d2) < 1e-9 and _on_segment(a2, b1, b2):
+        return True
+    if abs(d3) < 1e-9 and _on_segment(b1, a1, a2):
+        return True
+    if abs(d4) < 1e-9 and _on_segment(b2, a1, a2):
+        return True
+    return False
+
+
+def _point_in_polygon(p, poly: list) -> bool:
+    """Ray-casting test. Works for convex or concave simple polygons, which
+    covers real (possibly slightly rotated/skewed) pushbroom footprints."""
+    n = len(poly)
+    inside = False
+    x, y = p
+    for i in range(n):
+        x1, y1 = poly[i]
+        x2, y2 = poly[(i + 1) % n]
+        if ((y1 > y) != (y2 > y)) and (x < (x2 - x1) * (y - y1) / (y2 - y1 + 1e-15) + x1):
+            inside = not inside
+    return inside
+
+
+def _polygons_intersect(poly_a: list, poly_b: list) -> bool:
+    """True if the two simple polygons overlap at all -- edges crossing, or
+    one fully containing the other (edges alone miss full containment)."""
+    for i in range(len(poly_a)):
+        a1, a2 = poly_a[i], poly_a[(i + 1) % len(poly_a)]
+        for j in range(len(poly_b)):
+            b1, b2 = poly_b[j], poly_b[(j + 1) % len(poly_b)]
+            if _segments_intersect(a1, a2, b1, b2):
+                return True
+    if _point_in_polygon(poly_a[0], poly_b) or _point_in_polygon(poly_b[0], poly_a):
+        return True
+    return False
+
+
+def _point_to_segment_distance(p, a, b) -> float:
+    px, py = p; ax, ay = a; bx, by = b
+    dx, dy = bx - ax, by - ay
+    if dx == 0 and dy == 0:
+        return float(np.hypot(px - ax, py - ay))
+    t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)))
+    return float(np.hypot(px - (ax + t * dx), py - (ay + t * dy)))
+
+
+def _min_distance_between_polygons(poly_a: list, poly_b: list) -> float:
+    """Minimum distance (km, on the local tangent plane) between any edge of
+    A and any edge of B -- only meaningful/called when they don't intersect."""
+    best = float("inf")
+    for i in range(len(poly_a)):
+        a1, a2 = poly_a[i], poly_a[(i + 1) % len(poly_a)]
+        for j in range(len(poly_b)):
+            b1, b2 = poly_b[j], poly_b[(j + 1) % len(poly_b)]
+            best = min(best,
+                       _point_to_segment_distance(a1, b1, b2), _point_to_segment_distance(a2, b1, b2),
+                       _point_to_segment_distance(b1, a1, a2), _point_to_segment_distance(b2, a1, a2))
+    return best
+
+
+def check_footprint_overlap(footprint_a: list, footprint_b: list) -> dict:
+    """Real polygon-intersection overlap test between two footprints, each
+    [[lat, lon], ...] with at least 3 corners (the same shape
+    orbital_geometry.py's `_ch2_footprint_corners`/`_nac_footprint_corners`
+    already produce). Deliberately NOT a centroid-distance threshold -- see
+    this module's docstring for why that isn't sufficient on its own.
+
+    Returns {"overlaps": bool, "separation_km": float, "reason": str}.
+    separation_km is 0.0 when they overlap, otherwise the real minimum
+    edge-to-edge distance (not centroid-to-centroid, which would overstate
+    how far apart two large, oddly-shaped footprints really are)."""
+    if not footprint_a or not footprint_b or len(footprint_a) < 3 or len(footprint_b) < 3:
+        return {"overlaps": False, "separation_km": None,
+                "reason": "one or both footprints have fewer than 3 corners -- cannot test overlap"}
+
+    ref_lat = (float(np.mean([p[0] for p in footprint_a])) + float(np.mean([p[0] for p in footprint_b]))) / 2
+    ref_lon = float(np.mean([p[1] for p in footprint_a]))
+
+    poly_a = _footprint_to_local_km(footprint_a, ref_lat, ref_lon)
+    poly_b = _footprint_to_local_km(footprint_b, ref_lat, ref_lon)
+
+    if _polygons_intersect(poly_a, poly_b):
+        return {"overlaps": True, "separation_km": 0.0, "reason": "footprints intersect"}
+
+    sep_km = _min_distance_between_polygons(poly_a, poly_b)
+    return {"overlaps": False, "separation_km": sep_km,
+            "reason": f"no geographic overlap: footprints are ~{sep_km:.1f} km apart"}
