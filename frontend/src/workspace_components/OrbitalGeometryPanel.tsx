@@ -21,6 +21,8 @@
 // state survives navigation naturally, no persistence needed for that.
 import { useEffect, useState } from 'react';
 import { fetchOrbitalGeometry, moonContextImageUrl, type OrbitalGeometryResult, type OrbitalPosition } from '../services/api';
+import OrbitalFootprintMap from './OrbitalFootprintMap';
+import AreaDetailsPanel from './AreaDetailsPanel';
 
 // Real lunar surface imagery of this pair's real target location (ASU's
 // public Lunaserv WMS, LRO WAC global mosaic -- see
@@ -90,7 +92,17 @@ function summaryLine(result: OrbitalGeometryResult | null, loading: boolean, fet
   return `${ch2}  •  ${lro}`;
 }
 
-export default function OrbitalGeometryPanel({ runDirId }: { runDirId: string | null }) {
+export interface OrbitalGeometryPanelProps {
+  runDirId: string | null;
+  ssimMean?: number;
+  ssimValidFraction?: number;
+  elapsedSeconds?: number;
+  matcherUsed?: string;
+}
+
+export default function OrbitalGeometryPanel({
+  runDirId, ssimMean = 0, ssimValidFraction = 0, elapsedSeconds = 0, matcherUsed = '',
+}: OrbitalGeometryPanelProps) {
   const [result, setResult] = useState<OrbitalGeometryResult | null>(null);
   const [loading, setLoading] = useState(false);
   // Distinct from "no run yet" (runDirId is null): a real run_dir_id
@@ -196,6 +208,24 @@ export default function OrbitalGeometryPanel({ runDirId }: { runDirId: string | 
 
               {result.target_lat != null && result.target_lon != null && (
                 <MoonContextImage lat={result.target_lat} lon={result.target_lon} />
+              )}
+
+              {result.footprint && result.footprint.length >= 3 && (
+                <div className="mt-3 pt-3 border-t border-gray-200 dark:border-white/10">
+                  <h4 className="text-[9px] font-bold tracking-widest uppercase text-gray-500 mb-1.5">
+                    Footprint on the global Moon map
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <OrbitalFootprintMap footprint={result.footprint} height={240} />
+                    <AreaDetailsPanel
+                      footprint={result.footprint}
+                      ssimMean={ssimMean}
+                      ssimValidFraction={ssimValidFraction}
+                      elapsedSeconds={elapsedSeconds}
+                      matcherUsed={matcherUsed}
+                    />
+                  </div>
+                </div>
               )}
             </>
           )}

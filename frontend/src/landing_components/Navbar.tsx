@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export type Page = 'landing' | 'workspace' | 'invariance';
 
@@ -17,8 +18,11 @@ interface NavbarProps {
 }
 
 export default function Navbar({ onNavigate, dark = false, theme, onToggleTheme }: NavbarProps) {
+  const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const toggleButtonRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close menu if user clicks outside of it
   useEffect(() => {
@@ -31,8 +35,32 @@ export default function Navbar({ onNavigate, dark = false, theme, onToggleTheme 
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Close menu on Escape key press & return focus to toggle button
+  useEffect(() => {
+    if (!isMenuOpen) return;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setIsMenuOpen(false);
+        toggleButtonRef.current?.focus();
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isMenuOpen]);
+
+  // Focus first menu button when dropdown opens
+  useEffect(() => {
+    if (isMenuOpen) {
+      const firstBtn = dropdownRef.current?.querySelector('button');
+      firstBtn?.focus();
+    }
+  }, [isMenuOpen]);
+
   const handleNav = (page: Page) => {
     setIsMenuOpen(false);
+    if (page === 'landing') navigate('/');
+    else if (page === 'workspace') navigate('/workspace/step/0');
+    else if (page === 'invariance') navigate('/invariance');
     if (onNavigate) {
       onNavigate(page);
     }
@@ -46,7 +74,7 @@ export default function Navbar({ onNavigate, dark = false, theme, onToggleTheme 
     >
       <button
         onClick={() => handleNav('workspace')}
-        className={`px-4 py-1.5 text-[10px] font-bold rounded-sm tracking-wide hover:opacity-80 transition-opacity ${
+        className={`px-4 py-1.5 text-[10px] font-bold rounded-sm tracking-wide hover:opacity-80 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
           dark ? 'text-black bg-cyan-400' : 'text-white bg-black'
         }`}
       >
@@ -55,23 +83,31 @@ export default function Navbar({ onNavigate, dark = false, theme, onToggleTheme 
 
       {/* Center section with logo and Hamburger */}
       <div className="flex items-center gap-3 relative" ref={menuRef}>
-        <div
-          className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-transform hover:scale-105 ${dark ? 'bg-cyan-400' : 'bg-black'}`}
+        <button
           onClick={() => handleNav('landing')}
+          aria-label="Lunar Terra Home"
+          className="flex items-center gap-2 group focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 rounded-sm p-1"
         >
-          <div className={`w-3 h-3 rounded-full border border-t-transparent animate-spin ${dark ? 'border-black' : 'border-white'}`}></div>
-        </div>
-        <span
-          className={`font-bold tracking-widest text-xs cursor-pointer ${dark ? 'text-white' : 'text-black'}`}
-          onClick={() => handleNav('landing')}
-        >
-          LUNAR TERRA
-        </span>
+          <div
+            className={`w-6 h-6 rounded flex items-center justify-center transition-transform group-hover:scale-105 ${dark ? 'bg-cyan-400' : 'bg-black'}`}
+          >
+            <div className={`w-3 h-3 rounded-full border border-t-transparent animate-spin ${dark ? 'border-black' : 'border-white'}`}></div>
+          </div>
+          <span
+            className={`font-bold tracking-widest text-xs ${dark ? 'text-white' : 'text-black'}`}
+          >
+            LUNAR TERRA
+          </span>
+        </button>
 
         <div className="relative">
           <button
+            ref={toggleButtonRef}
+            aria-label="Toggle navigation menu"
+            aria-expanded={isMenuOpen}
+            aria-controls="nav-dropdown-menu"
             onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className={`w-6 h-6 flex items-center justify-center ml-1 text-xs rounded-sm hover:opacity-80 transition-opacity ${
+            className={`w-6 h-6 flex items-center justify-center ml-1 text-xs rounded-sm hover:opacity-80 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
               dark ? 'bg-cyan-400 text-black' : 'bg-black text-white'
             }`}
           >
@@ -81,29 +117,35 @@ export default function Navbar({ onNavigate, dark = false, theme, onToggleTheme 
           {/* Dropdown Menu */}
           {isMenuOpen && (
             <div
+              ref={dropdownRef}
+              id="nav-dropdown-menu"
+              role="menu"
               className={`absolute top-full mt-3 left-1/2 -translate-x-1/2 w-40 shadow-lg flex flex-col rounded-sm overflow-hidden z-[10000] ${
                 dark ? 'bg-[#111318] border border-white/10' : 'bg-white border border-gray-200'
               }`}
             >
               <button
+                role="menuitem"
                 onClick={() => handleNav('landing')}
-                className={`text-center px-4 py-3 text-[11px] font-bold tracking-wider transition-colors ${
+                className={`text-center px-4 py-3 text-[11px] font-bold tracking-wider transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
                   dark ? 'text-gray-200 border-b border-white/10 hover:bg-white/5' : 'text-black border-b border-gray-100 hover:bg-gray-50'
                 }`}
               >
                 HOME
               </button>
               <button
+                role="menuitem"
                 onClick={() => handleNav('workspace')}
-                className={`text-center px-4 py-3 text-[11px] font-bold tracking-wider transition-colors ${
+                className={`text-center px-4 py-3 text-[11px] font-bold tracking-wider transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
                   dark ? 'text-gray-200 border-b border-white/10 hover:bg-white/5' : 'text-black border-b border-gray-100 hover:bg-gray-50'
                 }`}
               >
                 WORKSPACE
               </button>
               <button
+                role="menuitem"
                 onClick={() => handleNav('invariance')}
-                className={`text-center px-4 py-3 text-[11px] font-bold tracking-wider transition-colors ${
+                className={`text-center px-4 py-3 text-[11px] font-bold tracking-wider transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
                   dark ? 'text-gray-200 hover:bg-white/5' : 'text-black hover:bg-gray-50'
                 }`}
               >
@@ -118,15 +160,16 @@ export default function Navbar({ onNavigate, dark = false, theme, onToggleTheme 
         {onToggleTheme && (
           <button
             onClick={onToggleTheme}
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-            className={`w-6 h-6 flex items-center justify-center rounded-sm text-xs transition-colors ${
+            className={`w-6 h-6 flex items-center justify-center rounded-sm text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
               dark ? 'bg-white/10 text-gray-200 hover:bg-white/20' : 'bg-black/5 text-black hover:bg-black/10'
             }`}
           >
             {theme === 'dark' ? '☀' : '☾'}
           </button>
         )}
-        <button className={`text-[10px] font-bold tracking-wide hover:opacity-70 transition-opacity ${dark ? 'text-gray-300' : 'text-black'}`}>
+        <button className={`text-[10px] font-bold tracking-wide hover:opacity-70 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${dark ? 'text-gray-300' : 'text-black'}`}>
           LOGIN / SIGN UP
         </button>
       </div>

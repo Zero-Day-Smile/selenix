@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from backend.pipeline.run_pipeline import run_registration, run_registration_manual_seed
-from backend.pipeline import memory, synthetic, ingestion, preprocessing, crater_catalog, geo_extent_guard, tmc_geometry, ancillary_readers, groq_interpret, orbital_geometry
+from backend.pipeline import memory, synthetic, ingestion, preprocessing, crater_catalog, geo_extent_guard, tmc_geometry, ancillary_readers, groq_interpret, orbital_geometry, gazetteer
 import json as _json
 import cv2 as _cv2
 
@@ -505,6 +505,46 @@ async def api_moon_context_image(lat: float, lon: float, span_deg: float = 2.0):
     except Exception as e:
         raise HTTPException(502, detail=f"could not fetch real lunar context image: {e}")
     return Response(content=data, media_type="image/png")
+
+
+@app.get("/api/nearest_named_feature")
+async def api_nearest_named_feature(lat: float, lon: float):
+    """Real nearest named lunar feature at (lat, lon) -- see
+    backend/pipeline/gazetteer.py's module docstring for the real WMS
+    source and the real queryable-layer/format facts that were verified
+    before writing that module. Real requests.get() call is blocking; run
+    off the event loop for the same reason as the other real-external-
+    service endpoints above. Fails soft: a genuine network/parse error
+    still returns available=False rather than a 500, matching this
+    project's whole 'a real external lookup being unavailable is real
+    information, not a crash' convention."""
+    try:
+        return await asyncio.to_thread(gazetteer.get_nearest_named_feature, lat, lon)
+    except Exception as e:
+        return {"available": False, "reason": f"lookup failed: {e}"}
+
+
+@app.get("/api/named_craters")
+async def api_named_craters(lat_min: float, lat_max: float, lon_min: float, lon_max: float, limit: int = 20):
+    """Real named craters (USGS Gazetteer of Planetary Nomenclature)
+    inside a real lat/lon bounding box -- typically a run's real footprint
+    bbox. Capped to the `limit` largest by real diameter (some mare
+    regions return far more named craters than are useful to render at
+    once); an empty real result is a valid, honest outcome (most small
+    regions have zero IAU-named craters), not an error."""
+    try:
+        craters = await asyncio.to_thread(gazetteer.search_named_craters, lat_min, lat_max, lon_min, lon_max)
+    except Exception as e:
+        raise HTTPException(502, detail=f"could not query the real USGS Gazetteer: {e}")
+    craters_sorted = sorted(craters, key=lambda c: c.diameter_km or 0, reverse=True)[:limit]
+    return {
+        "count_total": len(craters),
+        "count_returned": len(craters_sorted),
+        "craters": [
+            {"name": c.name, "lat": c.lat, "lon": c.lon, "diameter_km": c.diameter_km}
+            for c in craters_sorted
+        ],
+    }
 
 
 @app.get("/api/health")

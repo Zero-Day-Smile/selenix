@@ -96,7 +96,7 @@ export interface RunResultOk {
   status: 'ok';
   sensor_type: string;
   matcher_used: string;
-  matcher_selection: Record<string, number> & { chosen?: string } | null;
+  matcher_selection: (Record<string, number | string> & { chosen?: string }) | null;
   geometry_method: string;
   total_matches: number;
   inlier_count: number;
@@ -244,8 +244,8 @@ export async function checkBackendHealth(timeoutMs = 3000): Promise<boolean> {
 }
 
 export async function runRegistration(
-  sourceFile: File,
-  refFile: File,
+  sourceFile: File | File[],
+  refFile: File | File[],
   params: RunParams = {},
   // 120s was too tight and a real cause of false "Simulation mode" --
   // matcher='auto' (the UI default) runs classical SIFT AND deep LoFTR
@@ -256,21 +256,18 @@ export async function runRegistration(
   // treated a slow-but-working backend as an unreachable one. 600s is
   // generous enough to cover a cold LoFTR load + full auto-mode run on a
   // real multi-megapixel image on CPU.
-  timeoutMs = 600000,
-  // Real detached-label PDS3/PDS4 products need their companion binary
-  // (.img/.IMG) uploaded alongside the label (.xml/.lbl) in the SAME
-  // request -- the backend's /api/run already accepts multiple files per
-  // side (list[UploadFile]) for exactly this; appending each companion
-  // under the same 'source'/'reference' field name is how FastAPI/Starlette
-  // expects a list of files from one multipart field.
-  sourceCompanionFiles: File[] = [],
-  refCompanionFiles: File[] = []
+  timeoutMs = 600000
 ): Promise<RunResult> {
   const formData = new FormData();
-  formData.append('source', sourceFile);
-  for (const f of sourceCompanionFiles) formData.append('source', f);
-  formData.append('reference', refFile);
-  for (const f of refCompanionFiles) formData.append('reference', f);
+  const sources = Array.isArray(sourceFile) ? sourceFile : [sourceFile];
+  const refs = Array.isArray(refFile) ? refFile : [refFile];
+
+  for (const f of sources) {
+    formData.append('source', f);
+  }
+  for (const f of refs) {
+    formData.append('reference', f);
+  }
   if (params.matcher) formData.append('matcher', params.matcher);
   if (params.illum_mode) formData.append('illum_mode', params.illum_mode);
   if (params.sensor_type) formData.append('sensor_type', params.sensor_type);
@@ -390,6 +387,10 @@ export interface OrbitalGeometryResult {
   coverage_note: string;
   target_lat: number | null;
   target_lon: number | null;
+  // Real 4-corner footprint polygon ([lat, lon] pairs), from whichever
+  // real matched side (Chandrayaan-2 geometry.csv or LRO NAC KML) has it.
+  // null when neither side matched a real product with real footprint data.
+  footprint: [number, number][] | null;
 }
 
 export async function fetchOrbitalGeometry(runId: string): Promise<OrbitalGeometryResult | null> {
@@ -409,6 +410,62 @@ export async function fetchOrbitalGeometry(runId: string): Promise<OrbitalGeomet
 // outputUrl() elsewhere in this file.
 export function moonContextImageUrl(lat: number, lon: number, spanDeg = 2.0): string {
   return `${API_BASE}/api/moon_context_image?lat=${lat}&lon=${lon}&span_deg=${spanDeg}`;
+}
+
+// Real nearest named lunar feature (ASU Lunaserv WMS GetFeatureInfo,
+// luna_moon_nomenclature) and real named-crater list (USGS Gazetteer of
+// Planetary Nomenclature) for the AreaDetailsPanel. See
+// backend/pipeline/gazetteer.py's module docstring for the real,
+// verified facts about both external services (queryable layer name,
+// real INFO_FORMAT, the Gazetteer's real POST-only form + its real
+// single-match-redirect quirk).
+export interface NearestNamedFeature {
+  available: boolean;
+  name?: string;
+  lat?: number;
+  lon?: number;
+  diameter_km?: number;
+  feature_type?: string;
+  url?: string;
+  source?: string;
+  reason?: string;
+}
+
+export interface NamedCrater {
+  name: string;
+  lat: number;
+  lon: number;
+  diameter_km: number | null;
+}
+
+export interface NamedCratersResult {
+  count_total: number;
+  count_returned: number;
+  craters: NamedCrater[];
+}
+
+export async function fetchNearestNamedFeature(lat: number, lon: number): Promise<NearestNamedFeature | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/nearest_named_feature?lat=${lat}&lon=${lon}`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchNamedCraters(
+  latMin: number, latMax: number, lonMin: number, lonMax: number, limit = 20
+): Promise<NamedCratersResult | null> {
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/named_craters?lat_min=${latMin}&lat_max=${latMax}&lon_min=${lonMin}&lon_max=${lonMax}&limit=${limit}`
+    );
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------

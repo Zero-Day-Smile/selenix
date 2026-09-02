@@ -1,6 +1,9 @@
-import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export default function SectionCTA() {
+  const navigate = useNavigate();
+  const handleTryNow = () => navigate('/workspace/step/0');
+
   return (
     <section
       className="
@@ -46,6 +49,7 @@ export default function SectionCTA() {
 
         {/* MAIN CTA */}
         <div
+          onClick={handleTryNow}
           className="
             group
             relative
@@ -93,6 +97,7 @@ export default function SectionCTA() {
         {/* ARROW */}
         <button
           type="button"
+          onClick={handleTryNow}
           aria-label="Try it out now"
           className="
             group

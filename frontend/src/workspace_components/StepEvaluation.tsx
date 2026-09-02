@@ -147,8 +147,8 @@ export default function StepEvaluation({ data }: { data: WorkspaceData }) {
             // pair (see StepEvaluation.tsx comment) -- honestly null rather
             // than a fabricated/wrong-unit estimate.
             positional_uncertainty_metres: null,
-            source_sensor: sensorLabelForFilename(data.sourceFile?.name) ?? 'unknown sensor',
-            reference_sensor: sensorLabelForFilename(data.refFile?.name) ?? 'unknown sensor',
+            source_sensor: sensorLabelForFilename(data.sourceFile.find((f) => f.name.toLowerCase().endsWith('.img') || f.type.startsWith('image/'))?.name || data.sourceFile[0]?.name) ?? 'unknown sensor',
+            reference_sensor: sensorLabelForFilename(data.refFile.find((f) => f.name.toLowerCase().endsWith('.img') || f.type.startsWith('image/'))?.name || data.refFile[0]?.name) ?? 'unknown sensor',
             sun_angle_source: sunAngleSource,
             sun_angle_reference: sunAngleReference,
             failing_thresholds: validated ? [] : data.validation.reasons,
