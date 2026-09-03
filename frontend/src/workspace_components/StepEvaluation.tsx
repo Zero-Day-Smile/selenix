@@ -5,7 +5,6 @@ import { matchPointsToCsv } from '../services/api';
 import { useOsdViewer } from './useOsdViewer';
 import OsdPointOverlay from './OsdPointOverlay';
 import SsimHeatmapPlot from './SsimHeatmapPlot';
-import { useCountUp } from './useCountUp';
 import InterpretationCard from './InterpretationCard';
 import ValidationRadarChart from './ValidationRadarChart';
 import ConfidenceHistogram from './ConfidenceHistogram';
@@ -39,13 +38,6 @@ export default function StepEvaluation({ data }: { data: WorkspaceData }) {
         })),
     [data.matchPoints]
   );
-
-  const metrics = [
-    { label: 'RMSE (post-refinement)', value: data.metrics.rmse.toFixed(3), sub: 'sub-pixel accuracy target' },
-    { label: 'Inlier count', value: data.metrics.inlierCount, sub: `of ${data.candidateMatches} candidates` },
-    { label: 'Inlier ratio', value: `${(data.metrics.inlierRatio * 100).toFixed(1)}%`, sub: 'geometrically consistent' },
-    { label: 'RMSE improvement', value: `${data.metrics.rmseImprovementPct.toFixed(1)}%`, sub: 'pre → post refinement' },
-  ];
 
   const downloadBlob = (content: string, filename: string, mime: string) => {
     const blob = new Blob([content], { type: mime });
@@ -154,12 +146,6 @@ export default function StepEvaluation({ data }: { data: WorkspaceData }) {
             failing_thresholds: validated ? [] : data.validation.reasons,
           }}
         />
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        {metrics.map((m) => (
-          <MetricTile key={m.label} label={m.label} value={m.value} sub={m.sub} />
-        ))}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
@@ -300,20 +286,6 @@ export default function StepEvaluation({ data }: { data: WorkspaceData }) {
     </div>
   );
 }
-
-// Top metric tiles: numeric values (e.g. inlier count) count up from zero;
-// pre-formatted strings (e.g. "94.3%") render as-is.
-const MetricTile = ({ label, value, sub }: { label: string; value: number | string; sub: string }) => {
-  const isNumeric = typeof value === 'number';
-  const animated = useCountUp(isNumeric ? value : 0);
-  return (
-    <div className="bg-white border border-gray-200 dark:bg-white/[0.04] dark:backdrop-blur-md dark:border-white/10 p-4 shadow-sm rounded-sm">
-      <div className="font-mono text-2xl font-bold text-black dark:text-white tabular-nums">{isNumeric ? animated : value}</div>
-      <div className="text-[10px] text-gray-400 uppercase tracking-wide">{label}</div>
-      <div className="text-[9px] text-gray-500">{sub}</div>
-    </div>
-  );
-};
 
 const ExportItem = ({
   label,

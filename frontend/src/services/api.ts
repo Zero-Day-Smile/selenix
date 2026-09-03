@@ -468,6 +468,28 @@ export async function fetchNamedCraters(
   }
 }
 
+// Real inlier-ratio range from this project's own genuine same-sensor
+// self-pair runs (see backend/pipeline/memory.py::get_same_sensor_baseline).
+// Used by the Registration Attempt view's caption so its "same-sensor pairs
+// validate at X-Y%" claim is read from real accumulated history rather than
+// a number that can silently drift out of date.
+export interface SameSensorBaseline {
+  available: boolean;
+  min_inlier_ratio?: number;
+  max_inlier_ratio?: number;
+  n_runs?: number;
+}
+
+export async function fetchSameSensorBaseline(): Promise<SameSensorBaseline | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/same_sensor_baseline`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Real crater-catalog overlay (Robbins 2019 Lunar Crater Database + USGS
 // Gazetteer of Planetary Nomenclature). See backend/pipeline/crater_catalog.py

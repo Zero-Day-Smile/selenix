@@ -270,6 +270,16 @@ async def api_sensor_summary():
     return memory.get_sensor_summary()
 
 
+@app.get("/api/same_sensor_baseline")
+async def api_same_sensor_baseline():
+    """Real inlier-ratio range from this project's own genuine same-sensor
+    self-pair runs (real LRO NAC and Chandrayaan-2 self-pairs) -- see
+    memory.py's get_same_sensor_baseline() docstring. Used by the
+    Registration Attempt view's caption so that claim is read from real
+    accumulated history, never hardcoded."""
+    return memory.get_same_sensor_baseline()
+
+
 @app.get("/api/hardcases")
 async def api_hardcases():
     """Pre-curated difficult pairs. Generated on first request if not present

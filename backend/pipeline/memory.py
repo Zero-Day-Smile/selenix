@@ -132,6 +132,31 @@ def get_sensor_summary() -> list:
     return [dict(r) for r in rows]
 
 
+def get_same_sensor_baseline() -> dict:
+    """Real range of inlier ratios across this project's own genuine
+    same-sensor self-pair runs (src_path/ref_path under a real */self_pair/
+    directory -- the same real LRO NAC and Chandrayaan-2 self-pairs used as
+    the diagnostic battery's positive control), so a frontend caption citing
+    "same-sensor pairs validate at X-Y%" reads this from real accumulated
+    history instead of a number that can silently drift out of date. Returns
+    {"available": False} if no real self-pair run has been recorded yet."""
+    conn = _connect()
+    rows = conn.execute(
+        "SELECT inlier_ratio FROM runs WHERE (src_path LIKE '%self_pair%' OR ref_path LIKE '%self_pair%') "
+        "AND inlier_ratio IS NOT NULL"
+    ).fetchall()
+    conn.close()
+    vals = [r[0] for r in rows if r[0] is not None and r[0] == r[0]]
+    if not vals:
+        return {"available": False}
+    return {
+        "available": True,
+        "min_inlier_ratio": min(vals),
+        "max_inlier_ratio": max(vals),
+        "n_runs": len(vals),
+    }
+
+
 def cache_key(file_hash: str, params: dict) -> str:
     payload = file_hash + json.dumps(params, sort_keys=True)
     import hashlib

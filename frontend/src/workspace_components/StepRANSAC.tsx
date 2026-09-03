@@ -4,9 +4,9 @@ import type { WorkspaceData } from './types';
 import { useOsdViewer } from './useOsdViewer';
 import OsdPointOverlay from './OsdPointOverlay';
 import CorrespondenceCanvas, { type CorrespondencePoint } from './CorrespondenceCanvas';
+import Match3DPlot from './Match3DPlot';
 import { useCountUp } from './useCountUp';
 import InterpretationCard from './InterpretationCard';
-import InlierFunnelChart from './InlierFunnelChart';
 import RotationGauge from './RotationGauge';
 
 const LOG_STEPS = 1000;
@@ -41,7 +41,7 @@ function useLogThresholdSlider(errors: number[], fallbackDefault = 1.5) {
 }
 
 export default function StepRANSAC({ data }: { data: WorkspaceData }) {
-  const [mode, setMode] = useState<'lines' | 'zoom'>('zoom');
+  const [mode, setMode] = useState<'lines' | 'zoom' | '3d'>('3d');
 
   const errors = useMemo(
     () => data.matchPoints.map((p) => p.reproj_error_px).filter((e): e is number => e != null),
@@ -141,15 +141,6 @@ export default function StepRANSAC({ data }: { data: WorkspaceData }) {
           MAGSAC++ geometric verification separates real, geometrically-consistent matches from spurious ones.
         </p>
 
-        <div className="mt-4">
-          <InlierFunnelChart
-            candidates={candidateCount}
-            inliers={inlierCount}
-            outliers={outlierCount}
-            inlierRatio={liveStats ? liveStats.inlierRatio : data.inlierRatio}
-          />
-        </div>
-
         {data.rotationConsistency && (
           <div className="mt-2 flex flex-col items-center">
             <p className="text-[9px] text-gray-500 uppercase tracking-wide mb-1">Rotation consistency</p>
@@ -190,6 +181,15 @@ export default function StepRANSAC({ data }: { data: WorkspaceData }) {
 
         {mode === 'lines' && srcImg && refImg && srcShape && refShape ? (
           <CorrespondenceCanvas srcUrl={srcImg} refUrl={refImg} srcShape={srcShape} refShape={refShape} points={linePoints} capLabel="match" />
+        ) : mode === '3d' ? (
+          <Match3DPlot
+            refUrl={refImg}
+            refShape={refShape}
+            matchPoints={data.matchPoints}
+            srcUrl={srcImg}
+            srcShape={srcShape}
+            reprojThresholdPx={threshold}
+          />
         ) : (
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
@@ -209,19 +209,23 @@ export default function StepRANSAC({ data }: { data: WorkspaceData }) {
           </div>
         )}
 
-        <div className="flex justify-center gap-4 mt-4 text-xs text-gray-700 dark:text-gray-300">
-          <span className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full" style={{ background: INLIER_COLOR }}></span> Inlier
-          </span>
-          <span className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full opacity-45" style={{ background: OUTLIER_COLOR }}></span> Outlier
-          </span>
-        </div>
-        <p className="text-[10px] text-gray-500 mt-2 text-center">
-          {mode === 'lines'
-            ? 'Inliers are drawn bold and connected; outliers fade into the background.'
-            : "Each pane pans/zooms independently — markers are drawn in each pane's own image-pixel space, so they stay correctly placed as you navigate."}
-        </p>
+        {mode !== '3d' && (
+          <div className="flex justify-center gap-4 mt-4 text-xs text-gray-700 dark:text-gray-300">
+            <span className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: INLIER_COLOR }}></span> Inlier
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full opacity-45" style={{ background: OUTLIER_COLOR }}></span> Outlier
+            </span>
+          </div>
+        )}
+        {mode !== '3d' && (
+          <p className="text-[10px] text-gray-500 mt-2 text-center">
+            {mode === 'lines'
+              ? 'Inliers are drawn bold and connected; outliers fade into the background.'
+              : "Each pane pans/zooms independently — markers are drawn in each pane's own image-pixel space, so they stay correctly placed as you navigate."}
+          </p>
+        )}
       </div>
 
       <div className="bg-white border border-gray-200 dark:bg-white/[0.04] dark:backdrop-blur-md dark:border-white/10 p-6 shadow-sm rounded-sm mt-6">
@@ -268,7 +272,7 @@ export default function StepRANSAC({ data }: { data: WorkspaceData }) {
   );
 }
 
-const ModeToggle = ({ mode, setMode }: { mode: 'lines' | 'zoom'; setMode: (m: 'lines' | 'zoom') => void }) => (
+const ModeToggle = ({ mode, setMode }: { mode: 'lines' | 'zoom' | '3d'; setMode: (m: 'lines' | 'zoom' | '3d') => void }) => (
   <div className="flex text-[10px] font-mono uppercase tracking-wide border border-gray-300 dark:border-white/15 rounded-sm overflow-hidden">
     <button
       onClick={() => setMode('lines')}
@@ -281,6 +285,12 @@ const ModeToggle = ({ mode, setMode }: { mode: 'lines' | 'zoom'; setMode: (m: 'l
       className={`px-3 py-1.5 border-l border-gray-300 dark:border-white/15 ${mode === 'zoom' ? 'bg-cyan-400 text-black' : 'bg-gray-50 dark:bg-white/[0.03] text-gray-400 hover:bg-white/10'}`}
     >
       Zoom &amp; pan
+    </button>
+    <button
+      onClick={() => setMode('3d')}
+      className={`px-3 py-1.5 border-l border-gray-300 dark:border-white/15 ${mode === '3d' ? 'bg-cyan-400 text-black' : 'bg-gray-50 dark:bg-white/[0.03] text-gray-400 hover:bg-white/10'}`}
+    >
+      3D
     </button>
   </div>
 );

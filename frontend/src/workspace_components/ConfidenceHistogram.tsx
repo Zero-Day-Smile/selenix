@@ -78,16 +78,11 @@ export default function ConfidenceHistogram({ matchPoints }: { matchPoints: Matc
   const inlierKde = useMemo(() => kde(inlierSamples, KDE_BANDWIDTH, KDE_POINTS), [inlierSamples]);
   const maxKdeDensity = Math.max(1e-6, ...outlierKde.map((p) => p.y), ...inlierKde.map((p) => p.y));
 
-  // Real finding, not decorative: does the real outlier confidence density
-  // actually peak above 0.5?
-  const outlierPeakX = outlierKde.length ? outlierKde.reduce((best, p) => (p.y > best.y ? p : best), outlierKde[0]).x : 0;
-  const showWarning = outlierSamples.length > 0 && outlierPeakX > 0.5;
-
   // Chart margins must match ResponsiveBar's own margin exactly for the
   // manually-drawn KDE overlay (Nivo's own @nivo/bar custom-layer API
   // doesn't expose its internal x/y scales the way @nivo/line does) to
   // land in the same pixel space as the bars underneath it.
-  const margin = { top: 10, right: 10, bottom: 30, left: 35 };
+  const margin = { top: 10, right: 10, bottom: 50, left: 35 };
   const plotW = Math.max(0, size.w - margin.left - margin.right);
   const plotH = Math.max(0, size.h - margin.top - margin.bottom);
   const pathFor = (points: { x: number; y: number }[]) =>
@@ -125,7 +120,7 @@ export default function ConfidenceHistogram({ matchPoints }: { matchPoints: Matc
           padding={0.25}
           colors={['#4ade80', '#f87171']}
           theme={nivoTheme}
-          axisBottom={{ tickRotation: -35, legend: 'confidence score', legendPosition: 'middle', legendOffset: 28 }}
+          axisBottom={{ tickRotation: -35, legend: 'confidence score', legendPosition: 'middle', legendOffset: 44 }}
           axisLeft={{ legend: 'count', legendPosition: 'middle', legendOffset: -28 }}
           enableGridX={false}
           animate
@@ -146,11 +141,6 @@ export default function ConfidenceHistogram({ matchPoints }: { matchPoints: Matc
           </svg>
         )}
       </div>
-      {showWarning && (
-        <p className="text-[10px] text-red-400 font-bold text-center mt-2">
-          High-confidence false matches detected — crater self-similarity signature
-        </p>
-      )}
     </ChartCard>
   );
 }

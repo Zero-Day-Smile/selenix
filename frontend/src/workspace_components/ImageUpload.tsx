@@ -111,7 +111,9 @@ export default function ImageUpload({ label, files, onFileChange, disabled = fal
         )}
       </label>
       <p className="mt-3 text-[11px] text-gray-500 dark:text-gray-400 font-sans italic">
-        For Chandrayaan-2 PDS4 products, select the .xml/.lbl label together with its .img file.
+        {label.toLowerCase().includes('reference')
+          ? 'For LRO NAC PDS3 products with a detached label, select the .lbl file together with its .IMG file.'
+          : 'For Chandrayaan-2 PDS4 products, select the .xml/.lbl label together with its .img file.'}
       </p>
     </div>
   );
