@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-export type Page = 'landing' | 'workspace' | 'invariance';
+export type Page = 'landing' | 'workspace' | 'invariance' | 'registration-attempt';
 
 interface NavbarProps {
   onNavigate?: (page: Page) => void;
@@ -61,6 +61,7 @@ export default function Navbar({ onNavigate, dark = false, theme, onToggleTheme 
     if (page === 'landing') navigate('/');
     else if (page === 'workspace') navigate('/workspace/step/0');
     else if (page === 'invariance') navigate('/invariance');
+    else if (page === 'registration-attempt') navigate('/registration-attempt');
     if (onNavigate) {
       onNavigate(page);
     }
@@ -146,10 +147,19 @@ export default function Navbar({ onNavigate, dark = false, theme, onToggleTheme 
                 role="menuitem"
                 onClick={() => handleNav('invariance')}
                 className={`text-center px-4 py-3 text-[11px] font-bold tracking-wider transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
-                  dark ? 'text-gray-200 hover:bg-white/5' : 'text-black hover:bg-gray-50'
+                  dark ? 'text-gray-200 border-b border-white/10 hover:bg-white/5' : 'text-black border-b border-gray-100 hover:bg-gray-50'
                 }`}
               >
                 INVARIANCE
+              </button>
+              <button
+                role="menuitem"
+                onClick={() => handleNav('registration-attempt')}
+                className={`text-center px-4 py-3 text-[11px] font-bold tracking-wider transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
+                  dark ? 'text-gray-200 hover:bg-white/5' : 'text-black hover:bg-gray-50'
+                }`}
+              >
+                REGISTRATION ATTEMPT
               </button>
             </div>
           )}
@@ -169,7 +179,10 @@ export default function Navbar({ onNavigate, dark = false, theme, onToggleTheme 
             {theme === 'dark' ? '☀' : '☾'}
           </button>
         )}
-        <button className={`text-[10px] font-bold tracking-wide hover:opacity-70 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${dark ? 'text-gray-300' : 'text-black'}`}>
+        <button
+          onClick={() => navigate('/login')}
+          className={`text-[10px] font-bold tracking-wide hover:opacity-70 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${dark ? 'text-gray-300' : 'text-black'}`}
+        >
           LOGIN / SIGN UP
         </button>
       </div>
