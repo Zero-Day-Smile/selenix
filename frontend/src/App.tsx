@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import Landing from './pages/landing';
 import Workspace from './pages/Workspace';
 import InvarianceAnalysis from './pages/InvarianceAnalysis';
+import RegistrationAttempt from './pages/RegistrationAttempt';
 import Login from './pages/Login';
 
 function App() {
@@ -13,6 +14,7 @@ function App() {
       <Route path="/workspace" element={<Navigate to="/workspace/step/0" replace />} />
       <Route path="/workspace/step/:stepIndex" element={<Workspace />} />
       <Route path="/invariance" element={<InvarianceAnalysis />} />
+      <Route path="/registration-attempt" element={<RegistrationAttempt />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
