@@ -306,6 +306,25 @@ export function outputUrl(runId: string, filename: string): string {
   return `${API_BASE}/api/runs/${runId}/${filename}`;
 }
 
+// Real, downloadable PDF report for one run -- see
+// backend/pipeline/report_generator.py's module docstring for exactly
+// which real pipeline component backs each section. A plain URL (like
+// outputUrl above) rather than a fetch wrapper: the backend's real
+// Content-Disposition: attachment header handles the download, no blob
+// juggling needed client-side.
+export function reportUrl(runId: string): string {
+  return `${API_BASE}/api/report/${runId}`;
+}
+
+// Real, downloadable "Terrain Roughness / Site-Selection Context" PDF --
+// crater-catalog-derived only, explicitly NOT a landing/descent/trajectory
+// simulation (see backend/pipeline/terrain_context_report.py's module
+// docstring). Separate endpoint, separate button, on purpose -- never
+// conflated with the general area report above.
+export function terrainContextReportUrl(runId: string): string {
+  return `${API_BASE}/api/terrain_context_report/${runId}`;
+}
+
 // ---------------------------------------------------------------------------
 // Real-time Groq (llama-3.3-70b-versatile) plain-language interpretation of
 // real pipeline metrics -- backend/pipeline/groq_interpret.py is the only

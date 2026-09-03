@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from backend.pipeline.run_pipeline import run_registration, run_registration_manual_seed
-from backend.pipeline import memory, synthetic, ingestion, preprocessing, crater_catalog, geo_extent_guard, tmc_geometry, ancillary_readers, groq_interpret, orbital_geometry, gazetteer
+from backend.pipeline import memory, synthetic, ingestion, preprocessing, crater_catalog, geo_extent_guard, tmc_geometry, ancillary_readers, groq_interpret, orbital_geometry, gazetteer, report_generator, terrain_context_report
 import json as _json
 import cv2 as _cv2
 
@@ -278,6 +278,56 @@ async def api_same_sensor_baseline():
     Registration Attempt view's caption so that claim is read from real
     accumulated history, never hardcoded."""
     return memory.get_same_sensor_baseline()
+
+
+@app.get("/api/report/{run_id}")
+async def api_report(run_id: str):
+    """Real, downloadable PDF report for one run -- see
+    backend/pipeline/report_generator.py's module docstring for exactly
+    which real pipeline component backs each section (never recalculated
+    or invented here). PDF generation (reportlab layout, a real WMS map
+    fetch, real crater-catalog/gazetteer queries) is genuinely blocking
+    work, same reasoning as the other real-external-service/CPU-bound
+    endpoints above -- run off the event loop."""
+    from fastapi.responses import Response
+
+    if not os.path.exists(os.path.join(RUNS_DIR, run_id, "metrics.json")):
+        raise HTTPException(404, detail=f"unknown run_id {run_id!r}")
+    try:
+        pdf_bytes = await asyncio.to_thread(report_generator.generate_report_pdf, run_id, RUNS_DIR)
+        filename = await asyncio.to_thread(report_generator.report_filename, run_id, RUNS_DIR)
+    except Exception as e:
+        raise HTTPException(500, detail=f"could not generate real report: {e}")
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/api/terrain_context_report/{run_id}")
+async def api_terrain_context_report(run_id: str):
+    """Real, downloadable "Terrain Roughness / Site-Selection Context"
+    PDF -- crater-catalog density/size context ONLY for this run's real
+    footprint. Explicitly NOT a landing/descent/trajectory analysis (see
+    backend/pipeline/terrain_context_report.py's module docstring and the
+    report's own mandatory caveat paragraph). Separate endpoint from
+    /api/report on purpose -- never conflated with the general diagnostic
+    report."""
+    from fastapi.responses import Response
+
+    if not os.path.exists(os.path.join(RUNS_DIR, run_id, "metrics.json")):
+        raise HTTPException(404, detail=f"unknown run_id {run_id!r}")
+    try:
+        pdf_bytes = await asyncio.to_thread(terrain_context_report.generate_terrain_context_report_pdf, run_id, RUNS_DIR)
+        filename = await asyncio.to_thread(terrain_context_report.terrain_context_report_filename, run_id, RUNS_DIR)
+    except Exception as e:
+        raise HTTPException(500, detail=f"could not generate real terrain context report: {e}")
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @app.get("/api/hardcases")

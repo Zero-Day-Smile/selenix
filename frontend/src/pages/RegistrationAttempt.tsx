@@ -28,6 +28,8 @@ import ValidationRadarChart from '../workspace_components/ValidationRadarChart';
 import ChartCard from '../workspace_components/ChartCard';
 import {
   outputUrl,
+  reportUrl,
+  terrainContextReportUrl,
   fetchMatchPoints,
   fetchSameSensorBaseline,
   sensorLabelForFilename,
@@ -370,6 +372,32 @@ export default function RegistrationAttempt({ onNavigate }: { onNavigate?: (page
                   , isolating this result to genuine cross-sensor appearance difficulty, not a system fault.
                 </p>
               </div>
+
+              {/* Downloadable reports -- both real, server-generated PDFs
+                  (see backend/pipeline/report_generator.py and
+                  terrain_context_report.py). Two separate buttons/files on
+                  purpose: the terrain-context report is explicitly scoped
+                  to catalogued crater density/size only and must never be
+                  reachable in a way that could be mistaken for the general
+                  diagnostic report above. */}
+              <div className="flex flex-wrap gap-3 mb-6">
+                <a
+                  href={reportUrl(runId)}
+                  className="px-4 py-2 text-xs font-bold tracking-wide rounded-sm bg-cyan-500 dark:bg-cyan-400 text-white dark:text-black hover:bg-cyan-400 dark:hover:bg-cyan-300 transition-colors"
+                >
+                  ⬇ Download Full Report
+                </a>
+                <a
+                  href={terrainContextReportUrl(runId)}
+                  className="px-4 py-2 text-xs font-bold tracking-wide rounded-sm border border-gray-300 dark:border-white/15 text-gray-700 dark:text-gray-200 hover:border-cyan-500 dark:hover:border-cyan-400/60 transition-colors"
+                >
+                  ⬇ Download Terrain Context Report
+                </a>
+              </div>
+              <p className="text-[9px] text-gray-500 -mt-4 mb-6 max-w-2xl">
+                The terrain context report is crater-catalog density/size context only — it is{' '}
+                <span className="font-bold">not</span> a landing, descent, or trajectory analysis.
+              </p>
             </>
           )}
 
