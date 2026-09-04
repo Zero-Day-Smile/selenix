@@ -41,6 +41,13 @@ export interface WorkspaceData {
   srcGeometry: Record<string, string> | null;
   refGeometry: Record<string, string> | null;
 
+  // Real std(after)/std(before) global-contrast ratio (backend/pipeline/
+  // preprocessing.py::contrast_recovery_ratio), computed on the same
+  // src/ref arrays illumination_normalize() processed for this run.
+  // Absent (null) for runs made before this field existed or in
+  // simulation mode -- never fabricate a figure when this is null.
+  contrastRecovery: { src: number; ref: number } | null;
+
   // Real YOLOv8 crater detections (backend/pipeline/crater_detector.py),
   // in the SAME processed-image pixel space as matchPoints below -- distinct
   // from the catalog-crater lookup (CraterPinOverlay), which only covers the
@@ -151,6 +158,7 @@ export const emptyWorkspaceData = (): WorkspaceData => ({
   shadowAnalysis: null,
   srcGeometry: null,
   refGeometry: null,
+  contrastRecovery: null,
   craterDetections: null,
   matchPointsCsvUrl: null,
   metricsJsonUrl: null,

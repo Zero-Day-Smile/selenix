@@ -214,7 +214,11 @@ def run_registration(src_path: str, ref_path: str, out_dir: str,
 
     src_proc = preprocessing.illumination_normalize(src_u8_raw, illum_mode)
     ref_proc = preprocessing.illumination_normalize(ref_u8_raw, illum_mode)
-    print(f"[illumination] mode={illum_mode}")
+    contrast_recovery = {
+        "src": round(preprocessing.contrast_recovery_ratio(src_u8_raw, src_proc), 3),
+        "ref": round(preprocessing.contrast_recovery_ratio(ref_u8_raw, ref_proc), 3),
+    }
+    print(f"[illumination] mode={illum_mode} contrast_recovery={contrast_recovery}")
 
     # Explicit multi-scale handling: SIFT/LoFTR degrade sharply once the two
     # images differ by more than ~2x in effective resolution (measured: at a
@@ -470,6 +474,7 @@ def run_registration(src_path: str, ref_path: str, out_dir: str,
             "src_scale_applied": leveled.src_scale_applied,
             "ref_scale_applied": leveled.ref_scale_applied,
         },
+        "contrast_recovery": contrast_recovery,
         "ingestion": {
             "src_format": src_img.source_format,
             "ref_format": ref_img.source_format,
@@ -549,6 +554,10 @@ def run_registration_manual_seed(src_path: str, ref_path: str, out_dir: str,
     ref_u8_raw = ingestion.to_uint8(ref_img.gray)
     src_proc = preprocessing.illumination_normalize(src_u8_raw, illum_mode)
     ref_proc = preprocessing.illumination_normalize(ref_u8_raw, illum_mode)
+    contrast_recovery = {
+        "src": round(preprocessing.contrast_recovery_ratio(src_u8_raw, src_proc), 3),
+        "ref": round(preprocessing.contrast_recovery_ratio(ref_u8_raw, ref_proc), 3),
+    }
     print(f"[manual seed] {len(seed_points)} seed points, illum_mode={illum_mode}")
 
     src_pts = np.array([p["src"] for p in seed_points], dtype=np.float32)
@@ -656,6 +665,7 @@ def run_registration_manual_seed(src_path: str, ref_path: str, out_dir: str,
         "matcher_used": "manual_seed",
         "geometry_method": geo.method,
         "piecewise_tps_skip_reason": warp_piece_tps_skip_reason,
+        "contrast_recovery": contrast_recovery,
         "total_matches": len(seed_points),
         "inlier_count": n_inliers,
         "inlier_ratio": round(n_inliers / len(seed_points), 4),

@@ -90,6 +90,23 @@ def illumination_normalize(img_u8: np.ndarray, mode: str = "clahe",
     raise ValueError(f"Unknown illumination mode '{mode}' (expected none/clahe/gradient/both)")
 
 
+def contrast_recovery_ratio(before_u8: np.ndarray, after_u8: np.ndarray) -> float:
+    """Real, simple, auditable contrast-recovery figure: std(after) /
+    std(before) -- global pixel-intensity standard deviation, before vs
+    after illumination_normalize(). This did NOT previously exist as
+    pipeline output (added specifically to back the Illumination & Sun
+    Geometry card's "contrast recovered" figure); it's a genuine, cheap
+    computation on the same two real arrays run_pipeline.py already has
+    in hand, not an estimate or a new measurement device -- just a ratio
+    of two real pixel-statistics that weren't being reported anywhere
+    before this."""
+    before_std = float(np.std(before_u8.astype(np.float32)))
+    after_std = float(np.std(after_u8.astype(np.float32)))
+    if before_std < 1e-6:
+        return 1.0
+    return after_std / before_std
+
+
 @dataclass
 class ScaleEstimate:
     factor: float          # ref_size / src_size, i.e. how much bigger the reference is

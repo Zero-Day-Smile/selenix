@@ -68,6 +68,10 @@ export interface SunAngleContext {
   source: string;
   sun_elevation_mean_deg: number;
   solar_incidence_mean_deg: number;
+  // Real mean of the strip's .spm sun_azimuth_start/sun_azimuth_end
+  // (backend/app/main.py::_sun_angle_context) -- drives the sun-position
+  // diagram's arrow direction, not illustrative.
+  sun_azimuth_mean_deg: number;
   n_records: number;
 }
 
@@ -179,6 +183,12 @@ export interface RunResultOk {
   };
   src_shape?: [number, number];
   ref_shape?: [number, number];
+  // Real std(after)/std(before) global-contrast ratio from
+  // preprocessing.contrast_recovery_ratio(), computed on the same
+  // src/ref arrays illumination_normalize() already processes -- see
+  // backend/pipeline/run_pipeline.py. Absent for manual-seed runs made
+  // before this field existed; treat as optional, never fabricate.
+  contrast_recovery?: { src: number; ref: number };
 }
 
 export interface RunResultFailed {
@@ -325,6 +335,16 @@ export function terrainContextReportUrl(runId: string): string {
   return `${API_BASE}/api/terrain_context_report/${runId}`;
 }
 
+// Real, downloadable PDF combining the three area-intelligence cards
+// (Region Identity, Illumination & Sun Geometry, Shadow Coverage) -- see
+// backend/pipeline/area_intelligence_report.py's module docstring.
+// Separate endpoint/button from both reports above -- these three cards'
+// data isn't duplicated into report_generator.py or
+// terrain_context_report.py.
+export function areaIntelligenceReportUrl(runId: string): string {
+  return `${API_BASE}/api/area_intelligence_report/${runId}`;
+}
+
 // ---------------------------------------------------------------------------
 // Real-time Groq (llama-3.3-70b-versatile) plain-language interpretation of
 // real pipeline metrics -- backend/pipeline/groq_interpret.py is the only
@@ -410,6 +430,13 @@ export interface OrbitalGeometryResult {
   // real matched side (Chandrayaan-2 geometry.csv or LRO NAC KML) has it.
   // null when neither side matched a real product with real footprint data.
   footprint: [number, number][] | null;
+  // Real per-upload-side (not spacecraft) sensor label + real acquisition
+  // start_time, from whichever real source resolved it (embedded label or
+  // this product's own real archived label) -- see
+  // backend/pipeline/orbital_geometry.py::get_orbital_geometry. null when
+  // that side didn't match a known real product.
+  src_acquisition: { sensor: string; start_time: string } | null;
+  ref_acquisition: { sensor: string; start_time: string } | null;
 }
 
 export async function fetchOrbitalGeometry(runId: string): Promise<OrbitalGeometryResult | null> {

@@ -9,7 +9,7 @@ import InterpretationCard from './InterpretationCard';
 import ValidationRadarChart from './ValidationRadarChart';
 import ConfidenceHistogram from './ConfidenceHistogram';
 import MatchDistributionHeatmap from './MatchDistributionHeatmap';
-import { sensorLabelForFilename, INVARIANCE_FINDINGS } from '../services/api';
+import { sensorLabelForFilename, INVARIANCE_FINDINGS, reportUrl, terrainContextReportUrl, areaIntelligenceReportUrl } from '../services/api';
 
 export default function StepEvaluation({ data }: { data: WorkspaceData }) {
   const heatmapElRef = useRef<HTMLDivElement>(null);
@@ -279,9 +279,38 @@ export default function StepEvaluation({ data }: { data: WorkspaceData }) {
         )}
         <div className="space-y-4">
           <ExportItem label="Registered image" ext=".PNG" onClick={() => handleExport('image')} disabled={data.simulationMode || !data.registeredGlobalUrl} />
-          <ExportItem label="Match points" ext=".CSV" onClick={() => handleExport('points')} disabled={!data.matchPoints.length} />
-          <ExportItem label="Metrics report" ext=".JSON" onClick={() => handleExport('metrics')} disabled={false} />
+          {/* Real, server-generated PDFs (backend/pipeline/report_generator.py,
+              terrain_context_report.py) -- need a real run_dir_id, so
+              disabled in simulation mode the same way "Registered image"
+              already is. */}
+          <ExportItem
+            label="Full report"
+            ext=".PDF"
+            onClick={() => window.open(reportUrl(data.runDirId as string), '_blank')}
+            disabled={data.simulationMode || !data.runDirId}
+          />
+          <ExportItem
+            label="Terrain context report"
+            ext=".PDF"
+            onClick={() => window.open(terrainContextReportUrl(data.runDirId as string), '_blank')}
+            disabled={data.simulationMode || !data.runDirId}
+          />
+          {/* Combines the Region Identity, Illumination & Sun Geometry, and
+              Shadow Coverage cards (backend/pipeline/area_intelligence_report.py)
+              into one PDF -- same real per-run data those cards already show,
+              not a new computation. */}
+          <ExportItem
+            label="Area intelligence report"
+            ext=".PDF"
+            onClick={() => window.open(areaIntelligenceReportUrl(data.runDirId as string), '_blank')}
+            disabled={data.simulationMode || !data.runDirId}
+          />
         </div>
+        {!data.simulationMode && data.runDirId && (
+          <p className="text-[9px] text-gray-500 mt-3">
+            Terrain context report is crater-catalog density/size context only — not a landing, descent, or trajectory analysis.
+          </p>
+        )}
       </div>
     </div>
   );

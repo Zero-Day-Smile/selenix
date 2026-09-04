@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from backend.pipeline.run_pipeline import run_registration, run_registration_manual_seed
-from backend.pipeline import memory, synthetic, ingestion, preprocessing, crater_catalog, geo_extent_guard, tmc_geometry, ancillary_readers, groq_interpret, orbital_geometry, gazetteer, report_generator, terrain_context_report
+from backend.pipeline import memory, synthetic, ingestion, preprocessing, crater_catalog, geo_extent_guard, tmc_geometry, ancillary_readers, groq_interpret, orbital_geometry, gazetteer, report_generator, terrain_context_report, area_intelligence_report
 import json as _json
 import cv2 as _cv2
 
@@ -63,6 +63,11 @@ def _sun_angle_context(uploaded_path: str) -> dict | None:
         "source": "Chandrayaan-2 real .spm ancillary telemetry (ISSDC)",
         "sun_elevation_mean_deg": round(summary.sun_elevation_mean, 2),
         "solar_incidence_mean_deg": round(summary.solar_incidence_mean, 2),
+        # Real, already-computed field (sun_azimuth_start/_end in
+        # ancillary_readers.py) -- was never exposed here before; the
+        # mean of the strip's start/end azimuth is a real, honest single
+        # number for the sun-position diagram, not a new measurement.
+        "sun_azimuth_mean_deg": round((summary.sun_azimuth_start + summary.sun_azimuth_end) / 2, 2),
         "n_records": summary.n_records,
     }
 
@@ -323,6 +328,31 @@ async def api_terrain_context_report(run_id: str):
         filename = await asyncio.to_thread(terrain_context_report.terrain_context_report_filename, run_id, RUNS_DIR)
     except Exception as e:
         raise HTTPException(500, detail=f"could not generate real terrain context report: {e}")
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/api/area_intelligence_report/{run_id}")
+async def api_area_intelligence_report(run_id: str):
+    """Real, downloadable PDF combining the three area-intelligence cards
+    (Region Identity, Illumination & Sun Geometry, Shadow Coverage) --
+    see backend/pipeline/area_intelligence_report.py's module docstring
+    for exactly which real pipeline component backs each section. PDF
+    generation (reportlab layout, real gazetteer lookup, real image
+    compositing) is genuinely blocking work -- run off the event loop,
+    same reasoning as /api/report above."""
+    from fastapi.responses import Response
+
+    if not os.path.exists(os.path.join(RUNS_DIR, run_id, "metrics.json")):
+        raise HTTPException(404, detail=f"unknown run_id {run_id!r}")
+    try:
+        pdf_bytes = await asyncio.to_thread(area_intelligence_report.generate_area_intelligence_report_pdf, run_id, RUNS_DIR)
+        filename = await asyncio.to_thread(area_intelligence_report.area_intelligence_report_filename, run_id, RUNS_DIR)
+    except Exception as e:
+        raise HTTPException(500, detail=f"could not generate real area intelligence report: {e}")
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

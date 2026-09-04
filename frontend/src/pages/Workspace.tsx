@@ -58,6 +58,7 @@ interface SavedRun {
   craterDetections: WorkspaceData['craterDetections'];
   srcGeometry: WorkspaceData['srcGeometry'];
   refGeometry: WorkspaceData['refGeometry'];
+  contrastRecovery: WorkspaceData['contrastRecovery'];
   matchPoints: WorkspaceData['matchPoints'];
   keypointsSource: number;
   keypointsRef: number;
@@ -222,6 +223,7 @@ export default function Workspace({ onNavigate }: { onNavigate?: (page: Page) =>
             : null,
           srcGeometry: result.ingestion?.src_geometry ?? null,
           refGeometry: result.ingestion?.ref_geometry ?? null,
+          contrastRecovery: result.contrast_recovery ?? null,
           matchPoints,
           keypointsSource: result.src_keypoints || 0,
           keypointsRef: result.ref_keypoints || 0,
@@ -300,6 +302,7 @@ export default function Workspace({ onNavigate }: { onNavigate?: (page: Page) =>
         : null,
       srcGeometry: result.ingestion?.src_geometry ?? null,
       refGeometry: result.ingestion?.ref_geometry ?? null,
+      contrastRecovery: result.contrast_recovery ?? null,
       matchPointsCsvUrl: runDirId ? outputUrl(runDirId, 'match_points.csv') : null,
       metricsJsonUrl: runDirId ? outputUrl(runDirId, 'metrics.json') : null,
       matchPoints,
@@ -563,6 +566,7 @@ export default function Workspace({ onNavigate }: { onNavigate?: (page: Page) =>
           ssimValidFraction={data.ssim.validFraction}
           elapsedSeconds={data.elapsedSeconds}
           matcherUsed={data.matcherUsed}
+          data={data}
         />
 
         <div className="mt-8">

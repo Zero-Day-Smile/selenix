@@ -23,6 +23,10 @@ import { useEffect, useState } from 'react';
 import { fetchOrbitalGeometry, moonContextImageUrl, type OrbitalGeometryResult, type OrbitalPosition } from '../services/api';
 import OrbitalFootprintMap from './OrbitalFootprintMap';
 import AreaDetailsPanel from './AreaDetailsPanel';
+import SunGeometryCard from './SunGeometryCard';
+import ShadowCoverageCard from './ShadowCoverageCard';
+import RegionIdentityCard from './RegionIdentityCard';
+import type { WorkspaceData } from './types';
 
 // Real lunar surface imagery of this pair's real target location (ASU's
 // public Lunaserv WMS, LRO WAC global mosaic -- see
@@ -98,10 +102,15 @@ export interface OrbitalGeometryPanelProps {
   ssimValidFraction?: number;
   elapsedSeconds?: number;
   matcherUsed?: string;
+  // Optional: only needed to drive the Illumination & Sun Geometry,
+  // Shadow Coverage, and Region Identity cards below -- all three reuse
+  // values already present on WorkspaceData rather than fetching
+  // anything new, so this is a read-only slice, not new state.
+  data?: WorkspaceData;
 }
 
 export default function OrbitalGeometryPanel({
-  runDirId, ssimMean = 0, ssimValidFraction = 0, elapsedSeconds = 0, matcherUsed = '',
+  runDirId, ssimMean = 0, ssimValidFraction = 0, elapsedSeconds = 0, matcherUsed = '', data,
 }: OrbitalGeometryPanelProps) {
   const [result, setResult] = useState<OrbitalGeometryResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -225,6 +234,34 @@ export default function OrbitalGeometryPanel({
                       matcherUsed={matcherUsed}
                     />
                   </div>
+
+                  {data && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                      <RegionIdentityCard
+                        footprint={result.footprint}
+                        orbital={result}
+                        srcGeometry={data.srcGeometry}
+                        refGeometry={data.refGeometry}
+                      />
+                      <SunGeometryCard
+                        srcContext={data.shadowAnalysis?.src.sun_angle_context ?? null}
+                        refContext={data.shadowAnalysis?.ref.sun_angle_context ?? null}
+                        contrastRecovery={data.contrastRecovery}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {data && (
+                <div className="mt-3">
+                  <ShadowCoverageCard
+                    shadowAnalysis={data.shadowAnalysis}
+                    srcImgUrl={data.srcProcessedUrl || data.sourceUrl}
+                    refImgUrl={data.refProcessedUrl || data.refUrl}
+                    srcShadowOverlayUrl={data.srcShadowOverlayUrl}
+                    refShadowOverlayUrl={data.refShadowOverlayUrl}
+                  />
                 </div>
               )}
             </>

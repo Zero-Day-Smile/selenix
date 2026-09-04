@@ -365,8 +365,14 @@ def get_orbital_geometry(run_id: str, runs_dir: str) -> dict:
     ch2_id = ref_id = None
     target_latlon = None
     footprint = None  # real [[lat, lon], ...] x4, whichever real side has it
+    # Real per-side (src/ref) sensor label + acquisition start_time, for the
+    # Region Identity Card -- same real start_time this loop already
+    # resolves per side (embedded label, or this product's own real
+    # archived label as fallback), just also kept keyed by src/ref instead
+    # of being consumed only for the ch2/lro position lookup below.
+    side_info = {"src": None, "ref": None}
 
-    for path, geom in ((src_path, src_geom), (ref_path, ref_geom)):
+    for side_key, path, geom in (("src", src_path, src_geom), ("ref", ref_path, ref_geom)):
         basename = os.path.basename(path)
         start_time = geom.get("start_time")
 
@@ -379,6 +385,7 @@ def get_orbital_geometry(run_id: str, runs_dir: str) -> dict:
             start_time = _real_archived_start_time("ch2", matched_ch2_id)
         if matched_ch2_id and start_time:
             ch2_id = matched_ch2_id
+            side_info[side_key] = {"sensor": "Chandrayaan-2 TMC-2", "start_time": start_time}
             spm_path = os.path.join(CHANDRAYAAN2_DIR, ch2_id, f"{ch2_id}_sun_angles.spm")
             ch2_out = get_ch2_position(spm_path, _parse_iso(start_time))
             # Real per-pixel ground footprint centroid for this same product
@@ -403,6 +410,7 @@ def get_orbital_geometry(run_id: str, runs_dir: str) -> dict:
         if nac_id and not start_time:
             start_time = _real_archived_start_time("lro", nac_id)
         if nac_id and start_time:
+            side_info[side_key] = {"sensor": "LRO NAC", "start_time": start_time}
             lro_out = get_lro_position(LRO_SPK_DIR, _parse_iso(start_time))
             kml_path = os.path.join(LRO_NAC_DIR, nac_id, f"{nac_id}_xml.kml")
             if target_latlon is None and os.path.exists(kml_path):
@@ -462,4 +470,14 @@ def get_orbital_geometry(run_id: str, runs_dir: str) -> dict:
         # real matched NAC KML footprint otherwise. None if neither side
         # matched a real product with real footprint data.
         "footprint": footprint,
+        # Real per-side (upload src/ref, not spacecraft) sensor label +
+        # acquisition start_time (see side_info above) -- added for the
+        # Region Identity Card, which needs "sensor type and real
+        # acquisition date/time" per src/ref without re-deriving what this
+        # function already resolved. null for a side that didn't match a
+        # known real product. Deliberately named src_acquisition/
+        # ref_acquisition, not src/ref, so it can't be confused with the
+        # ch2/lro spacecraft-keyed fields above.
+        "src_acquisition": side_info["src"],
+        "ref_acquisition": side_info["ref"],
     }
