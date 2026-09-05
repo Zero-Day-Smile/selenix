@@ -244,7 +244,7 @@ export default function StepRANSAC({ data }: { data: WorkspaceData }) {
               step="1"
               value={thresholdPos}
               onChange={(e) => setThresholdPos(parseInt(e.target.value, 10))}
-              className="w-full accent-cyan-400"
+              className="w-full accent-[#0E0E0E] dark:accent-white"
               disabled={!hasLiveErrors}
             />
             <div className="flex justify-between text-[9px] text-gray-500 font-mono mt-0.5">
@@ -276,19 +276,19 @@ const ModeToggle = ({ mode, setMode }: { mode: 'lines' | 'zoom' | '3d'; setMode:
   <div className="flex text-[10px] font-mono uppercase tracking-wide border border-gray-300 dark:border-white/15 rounded-sm overflow-hidden">
     <button
       onClick={() => setMode('lines')}
-      className={`px-3 py-1.5 ${mode === 'lines' ? 'bg-cyan-400 text-black' : 'bg-gray-50 dark:bg-white/[0.03] text-gray-400 hover:bg-white/10'}`}
+      className={`px-3 py-1.5 ${mode === 'lines' ? 'bg-[#0E0E0E] text-white dark:bg-white dark:text-[#0E0E0E]' : 'bg-gray-50 dark:bg-white/[0.03] text-gray-400 hover:bg-white/10'}`}
     >
       Correspondence lines
     </button>
     <button
       onClick={() => setMode('zoom')}
-      className={`px-3 py-1.5 border-l border-gray-300 dark:border-white/15 ${mode === 'zoom' ? 'bg-cyan-400 text-black' : 'bg-gray-50 dark:bg-white/[0.03] text-gray-400 hover:bg-white/10'}`}
+      className={`px-3 py-1.5 border-l border-gray-300 dark:border-white/15 ${mode === 'zoom' ? 'bg-[#0E0E0E] text-white dark:bg-white dark:text-[#0E0E0E]' : 'bg-gray-50 dark:bg-white/[0.03] text-gray-400 hover:bg-white/10'}`}
     >
       Zoom &amp; pan
     </button>
     <button
       onClick={() => setMode('3d')}
-      className={`px-3 py-1.5 border-l border-gray-300 dark:border-white/15 ${mode === '3d' ? 'bg-cyan-400 text-black' : 'bg-gray-50 dark:bg-white/[0.03] text-gray-400 hover:bg-white/10'}`}
+      className={`px-3 py-1.5 border-l border-gray-300 dark:border-white/15 ${mode === '3d' ? 'bg-[#0E0E0E] text-white dark:bg-white dark:text-[#0E0E0E]' : 'bg-gray-50 dark:bg-white/[0.03] text-gray-400 hover:bg-white/10'}`}
     >
       3D
     </button>

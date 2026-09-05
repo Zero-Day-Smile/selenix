@@ -4,7 +4,7 @@
 // (computed in Workspace.tsx::applyResult from the real match points'
 // source-image positions -- this data was already being computed every
 // run but had zero consumers anywhere in the UI before this pass) as an
-// @nivo/heatmap with continuous cyan<->near-black color interpolation, no
+// @nivo/heatmap with continuous black<->white color interpolation, no
 // cell borders, a real quadrant-position tooltip, and a framer-motion
 // scan-pattern fade-in (top-left -> bottom-right, 20ms/cell).
 import { useMemo } from 'react';
@@ -22,7 +22,8 @@ function quadrantLabel(rowFrac: number, colFrac: number): string {
 }
 
 export default function MatchDistributionHeatmap({ heatmapData }: { heatmapData: number[][] }) {
-  const nivoTheme = nivoChartTheme(useCurrentTheme());
+  const theme = useCurrentTheme();
+  const nivoTheme = nivoChartTheme(theme);
   const gridN = heatmapData.length;
   const maxCount = Math.max(1, ...heatmapData.flat());
 
@@ -50,7 +51,7 @@ export default function MatchDistributionHeatmap({ heatmapData }: { heatmapData:
         axisLeft={null}
         colors={{
           type: 'sequential',
-          scheme: 'blues', // overridden per-cell below via a custom cell renderer's own interpolation
+          scheme: 'greys', // overridden per-cell below via a custom cell renderer's own interpolation
         }}
         theme={nivoTheme}
         borderWidth={0}
@@ -71,10 +72,12 @@ export default function MatchDistributionHeatmap({ heatmapData }: { heatmapData:
         }}
         cellComponent={({ cell, borderRadius }) => {
           const t = (cell.value ?? 0) / maxCount;
-          // Real, fixed dark-to-cyan interpolation (not per-run auto-scaled
-          // beyond this run's own max) -- same low-density-is-black,
-          // high-density-is-bright-cyan convention as the earlier version.
-          const c0 = [15, 23, 42], c1 = [34, 211, 238];
+          // Real, fixed low<->high density interpolation (not per-run
+          // auto-scaled beyond this run's own max) -- dark mode goes
+          // black (low) to white (high); light mode inverts so the high
+          // end stays dark and visible against a white card.
+          const c0 = theme === 'dark' ? [15, 15, 15] : [255, 255, 255];
+          const c1 = theme === 'dark' ? [255, 255, 255] : [15, 15, 15];
           const rgb = c0.map((v, i) => Math.round(v + (c1[i] - v) * t));
           const color = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
           // Real scan-order index (row-major, top-left -> bottom-right) for

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { Zap, CheckCircle2 } from 'lucide-react';
 import Navbar, { type Page } from '../landing_components/Navbar';
 import WorkspaceHeader from '../workspace_components/WorkspaceHeader';
 import StepUpload from '../workspace_components/StepUpload';
@@ -9,7 +10,6 @@ import StepRegistration from '../workspace_components/StepRegistration';
 import StepEvaluation from '../workspace_components/StepEvaluation';
 import OrbitalGeometryPanel from '../workspace_components/OrbitalGeometryPanel';
 import MissionStatusBar from '../workspace_components/MissionStatusBar';
-import { useElapsedTimer } from '../workspace_components/useElapsedTimer';
 import { useTheme } from '../workspace_components/useTheme';
 import { ThemeProvider } from '../workspace_components/ThemeContext';
 import { emptyWorkspaceData, type WorkspaceData } from '../workspace_components/types';
@@ -453,7 +453,6 @@ export default function Workspace({ onNavigate }: { onNavigate?: (page: Page) =>
   };
   const nextButtonLabel = () => (currentStep === STEPS.length - 1 ? 'Completed' : `Go to ${STEPS[currentStep + 1]} →`);
 
-  const elapsedMs = useElapsedTimer(loading || currentStep > 0);
   const [theme, toggleTheme] = useTheme();
 
   return (
@@ -499,27 +498,26 @@ export default function Workspace({ onNavigate }: { onNavigate?: (page: Page) =>
         steps={STEPS}
         currentStep={currentStep}
         completedUpTo={[0, 1, 2, 3, 4].filter((s) => s < currentStep || (s === currentStep && isStepComplete(s)))}
-        elapsedMs={elapsedMs}
       />
       <main className="flex-1 w-full max-w-6xl mx-auto px-6 py-12">
         {restorableRun && (
-          <div className="mb-6 bg-cyan-950/40 border border-cyan-400/40 rounded-sm px-4 py-3 flex flex-wrap items-center justify-between gap-4 text-xs font-mono text-cyan-200 shadow-sm">
+          <div className="mb-6 bg-[#0E0E0E]/[0.04] dark:bg-white/[0.06] border border-[#0E0E0E]/40 dark:border-white/40 rounded-sm px-4 py-3 flex flex-wrap items-center justify-between gap-4 text-xs font-mono text-[#0E0E0E] dark:text-gray-200 shadow-sm">
             <div className="flex items-center gap-2">
-              <span className="text-cyan-400 font-bold text-sm">↺</span>
+              <span className="text-[#0E0E0E] dark:text-white font-bold text-sm">↺</span>
               <span>
-                A previous backend run (<code className="text-cyan-300 font-semibold">{restorableRun.runDirId}</code>) is available from your session.
+                A previous backend run (<code className="text-[#0E0E0E] dark:text-white font-semibold">{restorableRun.runDirId}</code>) is available from your session.
               </span>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={handleRestoreRun}
-                className="px-3 py-1 bg-cyan-400 text-black font-bold rounded-sm hover:bg-cyan-300 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+                className="px-3 py-1 bg-[#0E0E0E] text-white dark:bg-white dark:text-[#0E0E0E] font-bold rounded-sm hover:opacity-80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0E0E0E] dark:focus-visible:ring-white"
               >
                 Restore Run
               </button>
               <button
                 onClick={handleDiscardRun}
-                className="px-3 py-1 bg-white/10 text-gray-300 font-semibold rounded-sm hover:bg-white/20 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+                className="px-3 py-1 bg-white/10 text-gray-300 font-semibold rounded-sm hover:bg-white/20 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0E0E0E] dark:focus-visible:ring-white"
               >
                 Discard
               </button>
@@ -544,13 +542,14 @@ export default function Workspace({ onNavigate }: { onNavigate?: (page: Page) =>
           />
           {data.runDirId !== null || data.simulationMode ? (
             <span
-              className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 rounded-sm border h-fit ${
+              className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 rounded-sm border h-fit inline-flex items-center gap-1.5 ${
                 data.simulationMode
                   ? 'border-amber-400 text-amber-700 bg-amber-50 dark:border-amber-400/40 dark:text-amber-300 dark:bg-amber-400/10'
                   : 'border-green-400 text-green-700 bg-green-50 dark:border-green-400/40 dark:text-green-300 dark:bg-green-400/10'
               }`}
             >
-              {data.simulationMode ? '⚡ Simulation mode' : '✅ Backend result'}
+              {data.simulationMode ? <Zap className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
+              {data.simulationMode ? 'Simulation mode' : 'Backend result'}
             </span>
           ) : null}
         </div>
@@ -588,12 +587,12 @@ export default function Workspace({ onNavigate }: { onNavigate?: (page: Page) =>
           {currentStep === 4 && <StepEvaluation data={data} />}
         </div>
 
-        <div className="flex justify-between mt-10 border-t border-gray-200 dark:border-white/10 pt-6">
+        <div className="flex justify-between mt-10 border-t border-[#0E0E0E]/15 dark:border-white/10 pt-6">
           <button
             onClick={prev}
             disabled={currentStep === 0}
             aria-label="Navigate to previous step"
-            className="px-5 py-2.5 text-xs font-bold tracking-wide rounded-sm border border-gray-300 dark:border-white/15 text-gray-700 dark:text-gray-200 hover:border-cyan-500 dark:hover:border-cyan-400/60 hover:text-cyan-600 dark:hover:text-cyan-300 disabled:bg-gray-100 dark:disabled:bg-white/[0.02] disabled:text-gray-400 dark:disabled:text-gray-600 disabled:border-gray-200 dark:disabled:border-white/5 disabled:cursor-not-allowed transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+            className="px-5 py-2.5 text-xs font-bold tracking-wide rounded-sm border border-gray-300 dark:border-white/15 text-gray-700 dark:text-gray-200 hover:border-[#0E0E0E] dark:hover:border-white/60 hover:text-[#0E0E0E] dark:hover:text-white disabled:bg-gray-100 dark:disabled:bg-white/[0.02] disabled:text-gray-400 dark:disabled:text-gray-600 disabled:border-[#0E0E0E]/15 dark:disabled:border-white/5 disabled:cursor-not-allowed transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0E0E0E] dark:focus-visible:ring-white"
           >
             ← Back
           </button>
@@ -601,7 +600,7 @@ export default function Workspace({ onNavigate }: { onNavigate?: (page: Page) =>
             onClick={next}
             disabled={!isStepComplete(currentStep) || currentStep === STEPS.length - 1}
             aria-label={nextButtonLabel()}
-            className="px-5 py-2.5 text-xs font-bold tracking-wide rounded-sm bg-cyan-500 dark:bg-cyan-400 text-white dark:text-black hover:bg-cyan-400 dark:hover:bg-cyan-300 disabled:bg-gray-200 dark:disabled:bg-white/10 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+            className="px-5 py-2.5 text-xs font-bold tracking-wide rounded-sm bg-[#0E0E0E] dark:bg-white text-white dark:text-[#0E0E0E] hover:opacity-80 disabled:bg-gray-200 dark:disabled:bg-white/10 disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0E0E0E] dark:focus-visible:ring-white"
           >
             {nextButtonLabel()}
           </button>

@@ -1,5 +1,6 @@
 // workspace_components/StepEvaluation.tsx
 import React, { useMemo, useRef } from 'react';
+import { CheckCircle2, AlertTriangle } from 'lucide-react';
 import type { WorkspaceData } from './types';
 import { matchPointsToCsv } from '../services/api';
 import { useOsdViewer } from './useOsdViewer';
@@ -99,11 +100,12 @@ export default function StepEvaluation({ data }: { data: WorkspaceData }) {
       >
         <div>
           <span
-            className={`text-lg font-bold tracking-wide ${
+            className={`text-lg font-bold tracking-wide inline-flex items-center gap-2 ${
               validated ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'
             }`}
           >
-            {validated ? '✅ VALIDATED' : '⚠ UNVALIDATED'}
+            {validated ? <CheckCircle2 className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
+            {validated ? 'VALIDATED' : 'UNVALIDATED'}
           </span>
           <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
             {validated
@@ -149,10 +151,10 @@ export default function StepEvaluation({ data }: { data: WorkspaceData }) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
-        <div className="bg-white border border-gray-200 dark:bg-white/[0.04] dark:backdrop-blur-md dark:border-white/10 p-6 shadow-sm rounded-sm flex flex-col">
+        <div className="bg-white border border-[#0E0E0E]/15 dark:bg-[#0E0E0E] dark:backdrop-blur-md dark:border-white/10 p-6 shadow-sm rounded-sm flex flex-col">
           <h3 className="text-xs font-bold tracking-wide uppercase mb-4 text-gray-700 dark:text-gray-300">Match distribution (reference image)</h3>
           <div className="relative flex-1 min-h-[320px] overflow-hidden rounded-sm">
-            <div ref={distributionElRef} className="w-full h-full border border-gray-200 dark:border-white/10 bg-black" />
+            <div ref={distributionElRef} className="w-full h-full border border-[#0E0E0E]/15 dark:border-white/10 bg-black" />
             <OsdPointOverlay viewer={distributionViewer} points={distributionPoints} />
           </div>
           <div className="flex items-center gap-4 mt-3 text-[10px] text-gray-400">
@@ -175,7 +177,7 @@ export default function StepEvaluation({ data }: { data: WorkspaceData }) {
             Uniform-selected matches: <span className="font-mono text-gray-800 dark:text-gray-200">{data.metrics.nUniformSelected}</span>
           </div>
 
-          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-white/10">
+          <div className="mt-4 pt-4 border-t border-[#0E0E0E]/15 dark:border-white/10">
             <p className="text-[9px] text-gray-500 uppercase tracking-wide mb-2">
               Same data, color-scaled grid (cell color = match density)
             </p>
@@ -183,7 +185,7 @@ export default function StepEvaluation({ data }: { data: WorkspaceData }) {
           </div>
         </div>
 
-        <div className="bg-white border border-gray-200 dark:bg-white/[0.04] dark:backdrop-blur-md dark:border-white/10 p-6 shadow-sm rounded-sm flex flex-col">
+        <div className="bg-white border border-[#0E0E0E]/15 dark:bg-[#0E0E0E] dark:backdrop-blur-md dark:border-white/10 p-6 shadow-sm rounded-sm flex flex-col">
           <h3 className="text-xs font-bold tracking-wide uppercase mb-4 text-gray-700 dark:text-gray-300">SSIM summary</h3>
           <div className="text-xs flex flex-col gap-1 text-gray-700 dark:text-gray-300">
             <div>
@@ -196,13 +198,13 @@ export default function StepEvaluation({ data }: { data: WorkspaceData }) {
               Overall SSIM: <span className="font-mono text-gray-900 dark:text-gray-100">{data.ssim.mean.toFixed(3)}</span>
             </div>
           </div>
-          <div className="mt-4 text-xs text-gray-500 border-t border-gray-200 dark:border-white/10 pt-2 pb-3">
+          <div className="mt-4 text-xs text-gray-500 border-t border-[#0E0E0E]/15 dark:border-white/10 pt-2 pb-3">
             <span>
               Elapsed: {data.elapsedSeconds.toFixed(1)}s · Matcher: {data.matcherUsed} · Geometry: {data.geometryMethod}
             </span>
           </div>
           {(data.ssimHeatmapDataUrl || data.ssimHeatmapUrl) && (
-            <div className="border-t border-gray-200 dark:border-white/10 pt-3">
+            <div className="border-t border-[#0E0E0E]/15 dark:border-white/10 pt-3">
               <h4 className="text-[10px] font-bold tracking-wide uppercase mb-2 text-gray-400">Dissimilarity heatmap</h4>
               {data.ssimHeatmapDataUrl ? (
                 <SsimHeatmapPlot
@@ -213,7 +215,7 @@ export default function StepEvaluation({ data }: { data: WorkspaceData }) {
                 />
               ) : (
                 <>
-                  <div ref={heatmapElRef} className="w-full h-[360px] border border-gray-200 dark:border-white/10 rounded-sm overflow-hidden bg-black" />
+                  <div ref={heatmapElRef} className="w-full h-[360px] border border-[#0E0E0E]/15 dark:border-white/10 rounded-sm overflow-hidden bg-black" />
                   <p className="text-[9px] text-gray-500 mt-1">
                     Per-cell SSIM data isn't available for this run (older cached run) — showing the static heatmap
                     image instead. Brightness encodes dissimilarity on a fixed 0–1 scale; fully transparent regions
@@ -241,7 +243,7 @@ export default function StepEvaluation({ data }: { data: WorkspaceData }) {
           across the whole tested dataset, not a single run) cross-
           referenced against this specific pair's own real sun-angle
           delta / scale ratio. */}
-      <div className="mt-8 bg-white border border-gray-200 dark:bg-white/[0.04] dark:backdrop-blur-md dark:border-white/10 p-6 shadow-sm rounded-sm">
+      <div className="mt-8 bg-white border border-[#0E0E0E]/15 dark:bg-[#0E0E0E] dark:backdrop-blur-md dark:border-white/10 p-6 shadow-sm rounded-sm">
         <h3 className="text-xs font-bold tracking-wide uppercase mb-1 text-gray-700 dark:text-gray-300">
           What this means for your pair
         </h3>
@@ -268,13 +270,11 @@ export default function StepEvaluation({ data }: { data: WorkspaceData }) {
         />
       </div>
 
-      <div className="mt-8 bg-white border border-gray-200 dark:bg-white/[0.04] dark:backdrop-blur-md dark:border-white/10 p-6 shadow-sm rounded-sm">
+      <div className="mt-8 bg-white border border-[#0E0E0E]/15 dark:bg-[#0E0E0E] dark:backdrop-blur-md dark:border-white/10 p-6 shadow-sm rounded-sm">
         <h3 className="text-xs font-bold tracking-wide uppercase mb-4 text-gray-700 dark:text-gray-300">Export</h3>
         {data.simulationMode && (
           <p className="text-[10px] text-amber-400 mb-3">
-            Running in simulation mode — the registered raster and metrics.json below come from the real backend
-            only when it's reachable. Here, "Match points" and "Metrics report" export the simulated data; "Registered
-            image" is unavailable since no real warp was computed.
+            Simulated results — some exports are unavailable until a real backend run completes.
           </p>
         )}
         <div className="space-y-4">
@@ -327,7 +327,7 @@ const ExportItem = ({
   onClick: () => void;
   disabled?: boolean;
 }) => (
-  <div className="flex justify-between items-center border-b border-gray-200 dark:border-white/10 pb-2">
+  <div className="flex justify-between items-center border-b border-[#0E0E0E]/15 dark:border-white/10 pb-2">
     <div>
       <span className="font-mono text-xs text-amber-400">{ext}</span>
       <div className="text-sm font-medium text-gray-800 dark:text-gray-200">{label}</div>
@@ -335,7 +335,7 @@ const ExportItem = ({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="text-xs border border-gray-300 dark:border-white/15 text-gray-700 dark:text-gray-300 px-4 py-1.5 rounded-sm hover:border-cyan-400/60 hover:text-cyan-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+      className="text-xs border border-gray-300 dark:border-white/15 text-gray-700 dark:text-gray-300 px-4 py-1.5 rounded-sm hover:border-[#0E0E0E]/60 dark:hover:border-white/60 hover:text-[#0E0E0E] dark:hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
     >
       Download
     </button>

@@ -7,6 +7,10 @@ export default function Login() {
   const navigate = useNavigate();
   const [theme, toggleTheme] = useTheme();
   const isDark = theme === 'dark';
+  // This page branches on the `isDark` boolean throughout rather than
+  // Tailwind's `dark:` pseudo-variant, so focus rings need the same
+  // manual branching to stay black/white-themed in both modes.
+  const ring = isDark ? 'white' : '[#0E0E0E]';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -83,8 +87,8 @@ export default function Login() {
       <div
         className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full pointer-events-none transition-all duration-300 ${
           isDark
-            ? 'bg-cyan-500/[0.03] blur-3xl'
-            : 'bg-cyan-600/[0.04] blur-3xl'
+            ? 'bg-white/[0.03] blur-3xl'
+            : 'bg-[#0E0E0E]/[0.04] blur-3xl'
         }`}
       />
 
@@ -93,19 +97,19 @@ export default function Login() {
         className={`w-full px-6 py-4 flex items-center justify-between border-b z-10 backdrop-blur-sm transition-colors duration-300 ${
           isDark
             ? 'bg-[#0a0b0f]/80 border-white/10'
-            : 'bg-white/80 border-gray-200 shadow-xs'
+            : 'bg-white/80 border-[#0E0E0E]/15 shadow-xs'
         }`}
       >
         <Link
           to="/"
-          className="flex items-center gap-3 group focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 rounded-sm"
+          className={`flex items-center gap-3 group focus:outline-none focus-visible:ring-2 focus-visible:ring-${ring} rounded-sm`}
           aria-label="Return to Selenix Home"
         >
           <div
             className={`w-7 h-7 rounded flex items-center justify-center border transition-colors ${
               isDark
-                ? 'bg-cyan-400/10 border-cyan-400/30 group-hover:border-cyan-400'
-                : 'bg-cyan-600/10 border-cyan-600/30 group-hover:border-cyan-600'
+                ? 'bg-white/10 border-white/30 group-hover:border-white'
+                : 'bg-[#0E0E0E]/10 border-[#0E0E0E]/30 group-hover:border-[#0E0E0E]'
             }`}
           >
             <img src={logoImg} alt="Selenix Logo" className="w-4 h-4 object-contain" />
@@ -120,7 +124,7 @@ export default function Login() {
             </span>
             <span
               className={`text-[9px] font-mono tracking-widest uppercase block ${
-                isDark ? 'text-cyan-400' : 'text-cyan-700'
+                isDark ? 'text-white' : 'text-[#0E0E0E]'
               }`}
             >
               LUNAR CORRESPONDENCE
@@ -145,7 +149,7 @@ export default function Login() {
             onClick={toggleTheme}
             aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
             title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm border text-[10px] font-mono uppercase tracking-wider transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm border text-[10px] font-mono uppercase tracking-wider transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-${ring} ${
               isDark
                 ? 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:text-white'
                 : 'bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200 hover:text-gray-900'
@@ -154,7 +158,7 @@ export default function Login() {
             {isDark ? (
               <>
                 <svg
-                  className="w-3.5 h-3.5 text-amber-300 shrink-0"
+                  className="w-3.5 h-3.5 text-white shrink-0"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -172,7 +176,7 @@ export default function Login() {
             ) : (
               <>
                 <svg
-                  className="w-3.5 h-3.5 text-cyan-700 shrink-0"
+                  className="w-3.5 h-3.5 text-[#0E0E0E] shrink-0"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -198,22 +202,22 @@ export default function Login() {
           {/* Technical corner accents */}
           <div
             className={`absolute -top-2 -left-2 w-3 h-3 border-t-2 border-l-2 pointer-events-none transition-colors ${
-              isDark ? 'border-cyan-400/60' : 'border-cyan-600/70'
+              isDark ? 'border-white/60' : 'border-[#0E0E0E]/70'
             }`}
           />
           <div
             className={`absolute -top-2 -right-2 w-3 h-3 border-t-2 border-r-2 pointer-events-none transition-colors ${
-              isDark ? 'border-cyan-400/60' : 'border-cyan-600/70'
+              isDark ? 'border-white/60' : 'border-[#0E0E0E]/70'
             }`}
           />
           <div
             className={`absolute -bottom-2 -left-2 w-3 h-3 border-b-2 border-l-2 pointer-events-none transition-colors ${
-              isDark ? 'border-cyan-400/60' : 'border-cyan-600/70'
+              isDark ? 'border-white/60' : 'border-[#0E0E0E]/70'
             }`}
           />
           <div
             className={`absolute -bottom-2 -right-2 w-3 h-3 border-b-2 border-r-2 pointer-events-none transition-colors ${
-              isDark ? 'border-cyan-400/60' : 'border-cyan-600/70'
+              isDark ? 'border-white/60' : 'border-[#0E0E0E]/70'
             }`}
           />
 
@@ -221,8 +225,8 @@ export default function Login() {
           <div
             className={`border backdrop-blur-md rounded-sm p-6 sm:p-8 shadow-2xl relative transition-all duration-300 ${
               isDark
-                ? 'bg-[#111318]/90 border-white/15 shadow-cyan-950/20'
-                : 'bg-white border-gray-200 shadow-gray-300/40'
+                ? 'bg-[#111318]/90 border-white/15 shadow-black/40'
+                : 'bg-white border-[#0E0E0E]/15 shadow-gray-300/40'
             }`}
           >
             {/* Mission Identifier Header */}
@@ -230,7 +234,7 @@ export default function Login() {
               <div className="flex items-center justify-between mb-2">
                 <span
                   className={`text-[10px] font-mono uppercase tracking-widest font-semibold ${
-                    isDark ? 'text-cyan-400' : 'text-cyan-700'
+                    isDark ? 'text-white' : 'text-[#0E0E0E]'
                   }`}
                 >
                   SELENIX // ACCESS
@@ -239,7 +243,7 @@ export default function Login() {
                   className={`text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-xs border ${
                     isDark
                       ? 'text-gray-400 bg-white/[0.04] border-white/10'
-                      : 'text-gray-600 bg-gray-100 border-gray-200'
+                      : 'text-gray-600 bg-gray-100 border-[#0E0E0E]/15'
                   }`}
                 >
                   SYS: ACTIVE
@@ -268,13 +272,13 @@ export default function Login() {
                 aria-live="polite"
                 className={`mb-5 p-3 text-xs rounded-sm flex items-start gap-2.5 border ${
                   isDark
-                    ? 'bg-cyan-950/40 border-cyan-500/30 text-cyan-200'
-                    : 'bg-cyan-50 border-cyan-200 text-cyan-900'
+                    ? 'bg-white/10 border-white/30 text-gray-100'
+                    : 'bg-gray-100 border-gray-300 text-gray-900'
                 }`}
               >
                 <svg
                   className={`w-4 h-4 shrink-0 mt-0.5 ${
-                    isDark ? 'text-cyan-400' : 'text-cyan-700'
+                    isDark ? 'text-white' : 'text-[#0E0E0E]'
                   }`}
                   fill="none"
                   viewBox="0 0 24 24"
@@ -321,17 +325,17 @@ export default function Login() {
                     placeholder="operator@isro.gov.in"
                     aria-invalid={Boolean(errors.email)}
                     aria-describedby={errors.email ? 'email-error' : undefined}
-                    className={`w-full border rounded-sm px-3 py-2.5 text-xs font-mono transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${
+                    className={`w-full border rounded-sm px-3 py-2.5 text-xs font-mono transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-${ring} ${
                       isDark
                         ? `bg-white/[0.03] text-gray-200 placeholder-gray-600 ${
                             errors.email
                               ? 'border-red-500/80 focus:border-red-400'
-                              : 'border-white/15 focus:border-cyan-400/50'
+                              : 'border-white/15 focus:border-white/50'
                           }`
                         : `bg-gray-50/80 text-gray-900 placeholder-gray-400 ${
                             errors.email
                               ? 'border-red-500 focus:border-red-600'
-                              : 'border-gray-300 focus:border-cyan-600 focus:bg-white'
+                              : 'border-gray-300 focus:border-[#0E0E0E] focus:bg-white'
                           }`
                     }`}
                   />
@@ -366,8 +370,8 @@ export default function Login() {
                     onClick={handleForgotPassword}
                     className={`text-[10px] font-mono transition-colors focus:outline-none focus-visible:underline ${
                       isDark
-                        ? 'text-cyan-400 hover:text-cyan-300'
-                        : 'text-cyan-700 hover:text-cyan-800'
+                        ? 'text-white hover:text-gray-300'
+                        : 'text-[#0E0E0E] hover:text-black/70'
                     }`}
                   >
                     Forgot password?
@@ -390,24 +394,24 @@ export default function Login() {
                     placeholder="••••••••••••"
                     aria-invalid={Boolean(errors.password)}
                     aria-describedby={errors.password ? 'password-error' : undefined}
-                    className={`w-full border rounded-sm px-3 py-2.5 pr-10 text-xs font-mono transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 ${
+                    className={`w-full border rounded-sm px-3 py-2.5 pr-10 text-xs font-mono transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-${ring} ${
                       isDark
                         ? `bg-white/[0.03] text-gray-200 placeholder-gray-600 ${
                             errors.password
                               ? 'border-red-500/80 focus:border-red-400'
-                              : 'border-white/15 focus:border-cyan-400/50'
+                              : 'border-white/15 focus:border-white/50'
                           }`
                         : `bg-gray-50/80 text-gray-900 placeholder-gray-400 ${
                             errors.password
                               ? 'border-red-500 focus:border-red-600'
-                              : 'border-gray-300 focus:border-cyan-600 focus:bg-white'
+                              : 'border-gray-300 focus:border-[#0E0E0E] focus:bg-white'
                           }`
                     }`}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((prev) => !prev)}
-                    className={`absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-500 ${
+                    className={`absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded focus:outline-none focus-visible:ring-1 focus-visible:ring-${ring} ${
                       isDark
                         ? 'text-gray-400 hover:text-gray-200'
                         : 'text-gray-500 hover:text-gray-800'
@@ -475,10 +479,10 @@ export default function Login() {
                     checked={rememberMe}
                     disabled={isLoading}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className={`w-3.5 h-3.5 rounded-xs focus:ring-1 focus:ring-cyan-500 focus:ring-offset-0 focus:outline-none ${
+                    className={`w-3.5 h-3.5 rounded-xs focus:ring-1 focus:ring-${ring} focus:ring-offset-0 focus:outline-none ${
                       isDark
-                        ? 'border-white/20 bg-white/[0.05] checked:bg-cyan-400 text-cyan-400'
-                        : 'border-gray-300 bg-gray-50 checked:bg-cyan-600 text-cyan-600'
+                        ? 'border-white/20 bg-white/[0.05] checked:bg-white text-white'
+                        : 'border-gray-300 bg-gray-50 checked:bg-[#0E0E0E] text-[#0E0E0E]'
                     }`}
                   />
                   <span
@@ -496,10 +500,10 @@ export default function Login() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className={`w-full py-3 px-4 text-xs font-bold tracking-wider uppercase rounded-sm transition-all duration-150 flex items-center justify-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  className={`w-full py-3 px-4 text-xs font-bold tracking-wider uppercase rounded-sm transition-all duration-150 flex items-center justify-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-${ring} disabled:opacity-50 disabled:cursor-not-allowed ${
                     isDark
-                      ? 'bg-cyan-400 text-black hover:bg-cyan-300 active:bg-cyan-500'
-                      : 'bg-cyan-600 text-white hover:bg-cyan-700 active:bg-cyan-800'
+                      ? 'bg-white text-black hover:bg-white/90 active:bg-white/80'
+                      : 'bg-[#0E0E0E] text-white hover:opacity-90 active:opacity-80'
                   }`}
                 >
                   {isLoading ? (
@@ -521,7 +525,7 @@ export default function Login() {
             {/* Back to Home / Navigation footer */}
             <div
               className={`mt-6 pt-4 border-t text-center ${
-                isDark ? 'border-white/10' : 'border-gray-200'
+                isDark ? 'border-white/10' : 'border-[#0E0E0E]/15'
               }`}
             >
               <Link
@@ -544,7 +548,7 @@ export default function Login() {
         className={`w-full px-6 py-3 border-t z-10 backdrop-blur-sm flex flex-col sm:flex-row items-center justify-between gap-2 text-[10px] font-mono transition-colors duration-300 ${
           isDark
             ? 'bg-[#0a0b0f]/80 border-white/10 text-gray-500'
-            : 'bg-white/80 border-gray-200 text-gray-600 shadow-xs'
+            : 'bg-white/80 border-[#0E0E0E]/15 text-gray-600 shadow-xs'
         }`}
       >
         <div className="flex items-center gap-3">

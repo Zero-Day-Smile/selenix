@@ -21,6 +21,7 @@
     "animejs": "^4.5.0",
     "framer-motion": "^13.1.1",
     "leaflet": "^1.9.4",
+    "lucide-react": "^1.41.0",
     "openseadragon": "^6.1.0",
     "plotly.js-dist-min": "^4.0.0",
     "react": "^19.2.8",
@@ -31,8 +32,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/node": "^24.13.3",
     "@types/leaflet": "^1.9.22",
+    "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@types/react-plotly.js": "^2.6.4",

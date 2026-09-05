@@ -1,5 +1,6 @@
 // workspace_components/StepUpload.tsx
 import React, { useEffect, useState } from 'react';
+import { Check, Zap, CheckCircle2 } from 'lucide-react';
 import type { WorkspaceData } from './types';
 import ImageUpload from './ImageUpload';
 import { PIPELINE_STAGES, type RunParams } from '../services/api';
@@ -78,7 +79,7 @@ export default function StepUpload({
         />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 bg-white border border-gray-200 dark:bg-white/[0.04] dark:backdrop-blur-md dark:border-white/10 p-4 shadow-sm rounded-sm">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 bg-white border border-[#0E0E0E]/15 dark:bg-[#0E0E0E] dark:backdrop-blur-md dark:border-white/10 p-4 shadow-sm rounded-sm">
         <Select
           label="Matcher"
           value={matcher}
@@ -126,14 +127,14 @@ export default function StepUpload({
         <button
           onClick={() => onRun({ matcher, illum_mode: illumMode, sensor_type: sensorType })}
           disabled={data.sourceFile.length === 0 || data.refFile.length === 0 || loading}
-          className="px-6 py-3 text-xs font-bold tracking-wide rounded-sm bg-cyan-400 text-black hover:bg-cyan-300 disabled:bg-white/10 disabled:text-gray-500 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+          className="px-6 py-3 text-xs font-bold tracking-wide rounded-sm bg-[#0E0E0E] text-white hover:opacity-80 dark:bg-white dark:text-[#0E0E0E] dark:hover:bg-white/90 disabled:bg-gray-200 disabled:text-gray-500 dark:disabled:bg-white/10 dark:disabled:text-gray-500 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0E0E0E] dark:focus-visible:ring-white"
         >
           {loading ? 'Running…' : 'Run Pipeline →'}
         </button>
       </div>
 
       {loading && (
-        <div className="mt-6 bg-white border border-gray-200 dark:bg-white/[0.04] dark:backdrop-blur-md dark:border-white/10 p-5 shadow-sm rounded-sm">
+        <div className="mt-6 bg-white border border-[#0E0E0E]/15 dark:bg-[#0E0E0E] dark:backdrop-blur-md dark:border-white/10 p-5 shadow-sm rounded-sm">
           <h3 className="text-[10px] font-bold tracking-widest uppercase mb-3 text-gray-400">Pipeline progress</h3>
           <ul className="space-y-2" aria-live="polite" aria-label="Pipeline execution progress">
             {PIPELINE_STAGES.map((stage, i) => {
@@ -146,13 +147,13 @@ export default function StepUpload({
                       state === 'done'
                         ? 'bg-green-400 text-black'
                         : state === 'active'
-                        ? 'border-2 border-cyan-400 text-cyan-300 animate-pulse'
+                        ? 'border-2 border-[#0E0E0E] dark:border-white text-[#0E0E0E] dark:text-white animate-pulse'
                         : 'border border-gray-300 dark:border-white/15 text-gray-600'
                     }`}
                   >
-                    {state === 'done' ? '✓' : i + 1}
+                    {state === 'done' ? <Check className="w-2.5 h-2.5" /> : i + 1}
                   </span>
-                  <span className={state === 'pending' ? 'text-gray-600' : state === 'active' ? 'text-cyan-300' : 'text-gray-800 dark:text-gray-200'}>
+                  <span className={state === 'pending' ? 'text-gray-600' : state === 'active' ? 'text-[#0E0E0E] dark:text-white' : 'text-gray-800 dark:text-gray-200'}>
                     {stage}
                     <span className="sr-only"> ({stateText})</span>
                   </span>
@@ -166,12 +167,16 @@ export default function StepUpload({
       <div className="flex flex-wrap items-center justify-between mt-4">
         {runError && <span className="text-xs text-red-400">Error: {runError}</span>}
         {backendAvailable === false && !loading && (
-          <span className="text-xs text-amber-400">
-            ⚡ Backend unreachable — showing a simulated pipeline run for demonstration purposes.
+          <span className="text-xs text-amber-400 flex items-center gap-1.5">
+            <Zap className="w-3.5 h-3.5 shrink-0" />
+            Simulated run — backend unavailable
           </span>
         )}
         {backendAvailable === true && !loading && data.keypointsSource > 0 && (
-          <span className="text-xs text-green-400">✅ Processed by backend</span>
+          <span className="text-xs text-green-400 flex items-center gap-1.5">
+            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+            Processed by backend
+          </span>
         )}
       </div>
     </div>
@@ -198,7 +203,7 @@ function Select({
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full border border-gray-300 dark:border-white/15 rounded-sm px-2 py-2 text-xs font-mono bg-gray-50 dark:bg-white/[0.03] text-gray-800 dark:text-gray-200 disabled:bg-white/[0.01] disabled:text-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+        className="w-full border border-gray-300 dark:border-white/15 rounded-sm px-2 py-2 text-xs font-mono bg-gray-50 dark:bg-white/[0.03] text-gray-800 dark:text-gray-200 disabled:bg-white/[0.01] disabled:text-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0E0E0E] dark:focus-visible:ring-white"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value} className="bg-[#111318] text-gray-800 dark:text-gray-200">

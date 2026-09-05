@@ -47,15 +47,14 @@ export default function InterpretationCard({
   return (
     <div
       className={`${base} ${loading ? 'animate-pulse-slow' : ''}`}
-      // 4px cyan left border -- visually distinguishes this Groq
-      // interpretation card from the dark navy chart cards around it,
-      // while still tying it into the same cyan accent those charts use.
-      style={{ borderLeft: '4px solid #06b6d4' }}
+      // 4px left border -- visually distinguishes this Groq
+      // interpretation card from the chart cards around it.
+      style={{ borderLeft: '4px solid #0E0E0E' }}
     >
       <style>{`
         @keyframes pulse-slow-bg {
           0%, 100% { background-color: rgba(255,255,255,0.02); }
-          50% { background-color: rgba(6,182,212,0.06); }
+          50% { background-color: rgba(14,14,14,0.06); }
         }
         .animate-pulse-slow { animation: pulse-slow-bg 1.6s ease-in-out infinite; }
       `}</style>

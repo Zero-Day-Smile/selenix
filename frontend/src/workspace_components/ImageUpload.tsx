@@ -58,7 +58,7 @@ export default function ImageUpload({ label, files, onFileChange, disabled = fal
   };
 
   return (
-    <div className="bg-white border border-gray-200 dark:bg-white/[0.04] dark:backdrop-blur-md dark:border-white/10 p-6 shadow-sm rounded-sm">
+    <div className="bg-white border border-[#0E0E0E]/15 dark:bg-[#0E0E0E] dark:backdrop-blur-md dark:border-white/10 p-6 shadow-sm rounded-sm">
       <h3 className="text-xs font-bold tracking-wide uppercase mb-4 text-gray-800 dark:text-gray-200">{label}</h3>
       <label
         tabIndex={disabled ? -1 : 0}
@@ -68,10 +68,10 @@ export default function ImageUpload({ label, files, onFileChange, disabled = fal
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         aria-label={`Upload container for ${label}`}
-        className={`border-2 border-dashed rounded-sm h-48 flex flex-col items-center justify-center cursor-pointer transition-colors relative overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
+        className={`border-2 border-dashed rounded-sm h-48 flex flex-col items-center justify-center cursor-pointer transition-colors relative overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0E0E0E] dark:focus-visible:ring-white ${
           isDragging
-            ? 'border-cyan-400 bg-cyan-500/10 dark:border-cyan-400 dark:bg-cyan-400/10'
-            : 'border-gray-300 dark:border-white/15 hover:border-cyan-400/60 bg-gray-50 dark:bg-black/20'
+            ? 'border-[#0E0E0E] bg-[#0E0E0E]/10 dark:border-white dark:bg-white/10'
+            : 'border-gray-300 dark:border-white/15 hover:border-[#0E0E0E]/60 dark:hover:border-white/60 bg-gray-50 dark:bg-black/20'
         } ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
       >
         <input
@@ -84,12 +84,12 @@ export default function ImageUpload({ label, files, onFileChange, disabled = fal
         />
         {isDragging ? (
           <div className="flex flex-col items-center gap-1 pointer-events-none">
-            <span className="text-sm font-bold text-cyan-500 dark:text-cyan-400">Drop files to upload</span>
+            <span className="text-sm font-bold text-[#0E0E0E] dark:text-white">Drop files to upload</span>
             <span className="text-[10px] text-gray-400 font-mono">Release files here</span>
           </div>
         ) : hasMultiple ? (
           <div className="w-full max-h-full overflow-y-auto px-4 py-2 space-y-1 text-left">
-            <div className="text-[10px] font-mono uppercase tracking-wider text-cyan-600 dark:text-cyan-400 font-semibold mb-1">
+            <div className="text-[10px] font-mono uppercase tracking-wider text-[#0E0E0E] dark:text-white font-semibold mb-1">
               {files.length} files selected
             </div>
             {files.map((f, idx) => (

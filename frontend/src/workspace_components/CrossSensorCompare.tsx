@@ -64,10 +64,10 @@ function MetaLine({ label, meta, opacity }: { label: string; meta: SideMeta; opa
 
 // Improvement 3: progress-bar color interpolates from the source color
 // (amber, matching this app's existing match-point color language) to the
-// reference color (cyan, matching the detected-crater overlay) across the
-// phase range.
+// reference color (theme black, matching the app's black & white palette)
+// across the phase range.
 const SRC_COLOR: [number, number, number] = [245, 158, 11]; // amber-500
-const REF_COLOR: [number, number, number] = [34, 211, 238]; // cyan-400
+const REF_COLOR: [number, number, number] = [14, 14, 14]; // #0E0E0E
 
 function lerpColor(t: number): string {
   const c = SRC_COLOR.map((s, i) => Math.round(s + (REF_COLOR[i] - s) * t));
@@ -188,11 +188,11 @@ export default function CrossSensorCompare({
   const progressColor = useMemo(() => lerpColor(mode === 'crossfade' ? phase : 0.5), [mode, phase]);
 
   return (
-    <div className="bg-white border border-gray-200 dark:bg-white/[0.04] dark:backdrop-blur-md dark:border-white/10 p-6 shadow-sm rounded-sm mb-6">
+    <div className="bg-white border border-[#0E0E0E]/15 dark:bg-[#0E0E0E] dark:backdrop-blur-md dark:border-white/10 p-6 shadow-sm rounded-sm mb-6">
       <style>{`
         @keyframes wipe-divider-pulse {
-          0%, 100% { box-shadow: 0 0 4px 1px rgba(34, 211, 238, 0.5); }
-          50% { box-shadow: 0 0 9px 2px rgba(34, 211, 238, 0.95); }
+          0%, 100% { box-shadow: 0 0 4px 1px rgba(255, 255, 255, 0.5); }
+          50% { box-shadow: 0 0 9px 2px rgba(255, 255, 255, 0.95); }
         }
         .wipe-divider-glow { animation: wipe-divider-pulse 1.6s ease-in-out infinite; }
       `}</style>
@@ -205,17 +205,17 @@ export default function CrossSensorCompare({
         </div>
         <div className="flex items-center gap-2 relative" onMouseEnter={() => setShowShortcuts(true)} onMouseLeave={() => setShowShortcuts(false)}>
           {showShortcuts && (
-            <div className="absolute top-full right-0 mt-1 z-10 bg-black text-white text-[9px] font-mono px-2.5 py-2 rounded-sm whitespace-nowrap shadow-lg">
-              <div><span className="text-cyan-300">Space</span> play/pause</div>
-              <div><span className="text-cyan-300">C</span> crossfade &nbsp; <span className="text-cyan-300">W</span> wipe</div>
-              <div><span className="text-cyan-300">&#8592;/&#8594;</span> scrub divider (wipe mode)</div>
+            <div className="absolute top-full right-0 mt-1 z-10 bg-black text-gray-400 text-[9px] font-mono px-2.5 py-2 rounded-sm whitespace-nowrap shadow-lg">
+              <div><span className="text-white font-bold">Space</span> play/pause</div>
+              <div><span className="text-white font-bold">C</span> crossfade &nbsp; <span className="text-white font-bold">W</span> wipe</div>
+              <div><span className="text-white font-bold">&#8592;/&#8594;</span> scrub divider (wipe mode)</div>
             </div>
           )}
           {mode === 'crossfade' && (
             <button
               onClick={() => setPlaying((p) => !p)}
               aria-label={playing ? 'Pause animation' : 'Play animation'}
-              className="px-3 py-1.5 text-[10px] font-mono uppercase tracking-wide border rounded-sm bg-gray-50 dark:bg-white/[0.03] text-gray-400 border-gray-300 dark:border-white/15 hover:border-cyan-400/60 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+              className="px-3 py-1.5 text-[10px] font-mono uppercase tracking-wide border rounded-sm bg-gray-50 dark:bg-white/[0.03] text-gray-400 border-gray-300 dark:border-white/15 hover:border-[#0E0E0E]/60 dark:hover:border-white/60 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0E0E0E] dark:focus-visible:ring-white"
             >
               {playing ? 'Pause' : 'Play'}
             </button>
@@ -224,14 +224,14 @@ export default function CrossSensorCompare({
             <button
               onClick={() => setMode('crossfade')}
               aria-label="Switch to crossfade mode"
-              className={`px-3 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${mode === 'crossfade' ? 'bg-cyan-400 text-black' : 'bg-gray-50 dark:bg-white/[0.03] text-gray-400 hover:bg-white/10'}`}
+              className={`px-3 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0E0E0E] dark:focus-visible:ring-white ${mode === 'crossfade' ? 'bg-[#0E0E0E] text-white dark:bg-white dark:text-[#0E0E0E]' : 'bg-gray-50 dark:bg-white/[0.03] text-gray-400 hover:bg-white/10'}`}
             >
               Crossfade
             </button>
             <button
               onClick={() => setMode('wipe')}
               aria-label="Switch to wipe/scrub mode"
-              className={`px-3 py-1.5 border-l border-gray-300 dark:border-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${mode === 'wipe' ? 'bg-cyan-400 text-black' : 'bg-gray-50 dark:bg-white/[0.03] text-gray-400 hover:bg-white/10'}`}
+              className={`px-3 py-1.5 border-l border-gray-300 dark:border-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0E0E0E] dark:focus-visible:ring-white ${mode === 'wipe' ? 'bg-[#0E0E0E] text-white dark:bg-white dark:text-[#0E0E0E]' : 'bg-gray-50 dark:bg-white/[0.03] text-gray-400 hover:bg-white/10'}`}
             >
               Wipe / scrub
             </button>
@@ -267,11 +267,11 @@ export default function CrossSensorCompare({
 
         {mode === 'wipe' && (
           <div
-            className="absolute top-0 bottom-0 w-1 bg-cyan-400 cursor-ew-resize touch-none wipe-divider-glow"
+            className="absolute top-0 bottom-0 w-1 bg-white cursor-ew-resize touch-none wipe-divider-glow"
             style={{ left: `${wipePct}%`, transform: 'translateX(-50%)' }}
             onPointerDown={onWipePointerDown}
           >
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-cyan-400 flex items-center justify-center text-black text-[10px] font-bold">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white flex items-center justify-center text-black text-[10px] font-bold">
               &#8596;
             </div>
           </div>

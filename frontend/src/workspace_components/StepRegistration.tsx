@@ -66,7 +66,7 @@ export default function StepRegistration({ data }: { data: WorkspaceData }) {
         <div ref={elRef} className="w-full h-[420px] border border-gray-200 dark:border-white/10 rounded-sm overflow-hidden bg-black" />
         <div className="flex items-center gap-4 mt-4">
           <span className="text-xs text-gray-400">Reference</span>
-          <input type="range" min="0" max="100" value={blend} onChange={(e) => setBlend(parseInt(e.target.value))} className="flex-1 accent-cyan-400" />
+          <input type="range" min="0" max="100" value={blend} onChange={(e) => setBlend(parseInt(e.target.value))} className="flex-1 accent-[#0E0E0E] dark:accent-white" />
           <span className="text-xs text-gray-400">Warped source</span>
         </div>
         <p className="text-[10px] text-gray-500 mt-2">

@@ -73,7 +73,7 @@ export default function ValidationRadarChart({
   // Real verdict drives the fill color -- never re-derived from the axis
   // shape (which could technically disagree with the real backend verdict
   // in an edge case), always the actual data.validation.validated value.
-  const seriesColor = validated ? '#06b6d4' : '#f87171';
+  const seriesColor = validated ? '#4ade80' : '#f87171';
   const theme = useCurrentTheme();
   const nivoTheme = nivoChartTheme(theme);
   const boundaryColor = theme === 'dark' ? '#94a3b8' : '#64748b';

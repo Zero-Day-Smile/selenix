@@ -14,6 +14,7 @@
 // DegenerateWarpNotice, RotationGauge, InlierFunnelChart,
 // ConfidenceHistogram, ValidationRadarChart, ChartCard.
 import { useEffect, useMemo, useState } from 'react';
+import { CheckCircle2, AlertTriangle, Download } from 'lucide-react';
 import Navbar, { type Page } from '../landing_components/Navbar';
 import { useTheme } from '../workspace_components/useTheme';
 import { ThemeProvider } from '../workspace_components/ThemeContext';
@@ -162,8 +163,8 @@ export default function RegistrationAttempt({ onNavigate }: { onNavigate?: (page
                     <span className="font-bold">{refId}</span> ({refSensorLabel})
                   </span>
                   {overlapVerified && overlapFact && (
-                    <span className="px-2 py-1 rounded-sm border border-green-400 text-green-700 bg-green-50 dark:border-green-400/40 dark:text-green-300 dark:bg-green-400/10 text-[10px] uppercase tracking-widest font-bold">
-                      ✓ Geographic overlap verified — {overlapFact.verifiedPoints} real matched points
+                    <span className="px-2 py-1 rounded-sm border border-green-400 text-green-700 bg-green-50 dark:border-green-400/40 dark:text-green-300 dark:bg-green-400/10 text-[10px] uppercase tracking-widest font-bold inline-flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> Geographic overlap verified — {overlapFact.verifiedPoints} real matched points
                     </span>
                   )}
                 </div>
@@ -178,11 +179,12 @@ export default function RegistrationAttempt({ onNavigate }: { onNavigate?: (page
                 }`}
               >
                 <div
-                  className={`text-2xl md:text-3xl font-bold tracking-wide ${
+                  className={`text-2xl md:text-3xl font-bold tracking-wide inline-flex items-center gap-2.5 ${
                     result.validation.validated ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'
                   }`}
                 >
-                  {result.validation.validated ? '✅ VALIDATED' : `⚠ ${result.validation.label}`}
+                  {result.validation.validated ? <CheckCircle2 className="w-7 h-7" /> : <AlertTriangle className="w-7 h-7" />}
+                  {result.validation.validated ? 'VALIDATED' : result.validation.label}
                 </div>
                 {!result.validation.validated && (
                   <ul className="mt-3 space-y-1 text-[11px] font-mono text-red-800 dark:text-red-300">
@@ -196,7 +198,7 @@ export default function RegistrationAttempt({ onNavigate }: { onNavigate?: (page
               {/* 2. Side-by-side: source, reference -- the pipeline's real
                   (bad) matched correspondences, no substitution. The warped
                   output follows immediately below. */}
-              <div className="bg-white border border-gray-200 dark:bg-white/[0.04] dark:backdrop-blur-md dark:border-white/10 p-6 shadow-sm rounded-sm">
+              <div className="bg-white border border-[#0E0E0E]/15 dark:bg-[#0E0E0E] dark:backdrop-blur-md dark:border-white/10 p-6 shadow-sm rounded-sm">
                 <h3 className="text-[10px] font-bold tracking-widest uppercase text-gray-400 mb-3">
                   Source / reference — real matched correspondences
                 </h3>
@@ -235,11 +237,11 @@ export default function RegistrationAttempt({ onNavigate }: { onNavigate?: (page
                     what the warp actually produced AND exactly why it's
                     known-invalid, rather than one or the other. */}
                 {warpedImg ? (
-                  <div className="bg-white border border-gray-200 dark:bg-white/[0.04] dark:backdrop-blur-md dark:border-white/10 rounded-sm p-4">
+                  <div className="bg-white border border-[#0E0E0E]/15 dark:bg-[#0E0E0E] dark:backdrop-blur-md dark:border-white/10 rounded-sm p-4">
                     <h4 className="text-[10px] font-bold tracking-widest uppercase text-gray-400 mb-2">
                       Warped source (global homography) — real output, unaltered
                     </h4>
-                    <img src={warpedImg} alt="Real warped source, global homography" className="w-full rounded-sm border border-gray-200 dark:border-white/10" />
+                    <img src={warpedImg} alt="Real warped source, global homography" className="w-full rounded-sm border border-[#0E0E0E]/15 dark:border-white/10" />
                   </div>
                 ) : (
                   <p className="text-xs italic text-gray-400">No warped output for this run (homography estimation failed outright).</p>
@@ -358,7 +360,7 @@ export default function RegistrationAttempt({ onNavigate }: { onNavigate?: (page
 
               {/* 5. Fixed caption -- real same-sensor number pulled live,
                   never hardcoded (see /api/same_sensor_baseline). */}
-              <div className="mt-10 mb-4 p-4 rounded-sm border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.03]">
+              <div className="mt-10 mb-4 p-4 rounded-sm border border-[#0E0E0E]/15 dark:border-white/10 bg-white dark:bg-white/[0.03]">
                 <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
                   The pipeline correctly declined to validate this alignment.{' '}
                   {baselineText ? (
@@ -383,15 +385,15 @@ export default function RegistrationAttempt({ onNavigate }: { onNavigate?: (page
               <div className="flex flex-wrap gap-3 mb-6">
                 <a
                   href={reportUrl(runId)}
-                  className="px-4 py-2 text-xs font-bold tracking-wide rounded-sm bg-cyan-500 dark:bg-cyan-400 text-white dark:text-black hover:bg-cyan-400 dark:hover:bg-cyan-300 transition-colors"
+                  className="px-4 py-2 text-xs font-bold tracking-wide rounded-sm bg-[#0E0E0E] dark:bg-white text-white dark:text-[#0E0E0E] hover:opacity-80 transition-colors inline-flex items-center gap-1.5"
                 >
-                  ⬇ Download Full Report
+                  <Download className="w-3.5 h-3.5" /> Download Full Report
                 </a>
                 <a
                   href={terrainContextReportUrl(runId)}
-                  className="px-4 py-2 text-xs font-bold tracking-wide rounded-sm border border-gray-300 dark:border-white/15 text-gray-700 dark:text-gray-200 hover:border-cyan-500 dark:hover:border-cyan-400/60 transition-colors"
+                  className="px-4 py-2 text-xs font-bold tracking-wide rounded-sm border border-gray-300 dark:border-white/15 text-gray-700 dark:text-gray-200 hover:border-[#0E0E0E] dark:hover:border-white/60 transition-colors inline-flex items-center gap-1.5"
                 >
-                  ⬇ Download Terrain Context Report
+                  <Download className="w-3.5 h-3.5" /> Download Terrain Context Report
                 </a>
               </div>
               <p className="text-[9px] text-gray-500 -mt-4 mb-6 max-w-2xl">

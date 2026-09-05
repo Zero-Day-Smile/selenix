@@ -7,7 +7,7 @@
 // Chandrayaan-2 frames with known per-pixel geometry, and only shows
 // craters ≥1-2km already published in Robbins/USGS). Styled distinctly
 // from both that overlay (purple, diameter-accurate rings) and the
-// SIFT/LoFTR match markers on this same panel (amber dots/lines): cyan
+// SIFT/LoFTR match markers on this same panel (amber dots/lines): white
 // dashed circles, sized to the model's own detected radius_px, with
 // confidence/radius shown on click/hover.
 //
@@ -88,7 +88,7 @@ export default function DetectedCraterOverlay({
                 top: c.sy - c.screenRadius,
                 width: c.screenRadius * 2,
                 height: c.screenRadius * 2,
-                border: `2px dashed rgba(34, 211, 238, ${alpha})`,
+                border: `2px dashed rgba(255, 255, 255, ${alpha})`,
               }}
             />
             {/* Solid center dot, fixed size -- the always-visible cue,
@@ -103,8 +103,8 @@ export default function DetectedCraterOverlay({
                 top: c.sy - CENTER_DOT_RADIUS,
                 width: CENTER_DOT_RADIUS * 2,
                 height: CENTER_DOT_RADIUS * 2,
-                backgroundColor: `rgba(34, 211, 238, ${alpha})`,
-                boxShadow: '0 0 4px rgba(34, 211, 238, 0.9), 0 0 1px rgba(0,0,0,0.6)',
+                backgroundColor: `rgba(255, 255, 255, ${alpha})`,
+                boxShadow: '0 0 4px rgba(255, 255, 255, 0.9), 0 0 1px rgba(0,0,0,0.6)',
               }}
               title={`Detected crater — confidence ${c.confidence.toFixed(2)}, radius ${c.radius_px.toFixed(1)}px`}
             />

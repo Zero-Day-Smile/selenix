@@ -97,9 +97,9 @@ export default function OrbitalFootprintMap({ footprint, height = 280 }: Orbital
     if (!footprint || footprint.length < 3) return;
 
     const polygon = L.polygon(footprint, {
-      color: '#06b6d4',
+      color: '#0E0E0E',
       weight: 2,
-      fillColor: '#06b6d4',
+      fillColor: '#0E0E0E',
       fillOpacity: 0.25,
     }).addTo(map);
     polygonRef.current = polygon;

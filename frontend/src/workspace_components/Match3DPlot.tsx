@@ -453,7 +453,7 @@ export default function Match3DPlot({
               <button
                 key={p.label}
                 onClick={() => animateCameraTo(p.eye)}
-                className="px-2 py-1 rounded-sm border border-gray-300 dark:border-white/15 bg-white/80 dark:bg-black/60 text-gray-600 dark:text-gray-300 hover:border-cyan-400/60 hover:text-cyan-600 dark:hover:text-cyan-300 backdrop-blur-sm transition-colors"
+                className="px-2 py-1 rounded-sm border border-gray-300 dark:border-white/15 bg-white/80 dark:bg-black/60 text-gray-600 dark:text-gray-300 hover:border-[#0E0E0E]/60 dark:hover:border-white/60 hover:text-[#0E0E0E] dark:hover:text-white backdrop-blur-sm transition-colors"
               >
                 {p.label}
               </button>
@@ -496,7 +496,7 @@ export default function Match3DPlot({
                 {selected.point.refinement_offset_px != null && ` (offset ${selected.point.refinement_offset_px.toFixed(3)}px)`}
               </div>
             )}
-            {selected.point.uniform_selected && <div className="text-cyan-500 dark:text-cyan-400">part of the uniformity-selected inlier subset</div>}
+            {selected.point.uniform_selected && <div className="text-[#0E0E0E] dark:text-white">part of the uniformity-selected inlier subset</div>}
           </div>
           <button
             onClick={() => setSelected(null)}
@@ -511,7 +511,7 @@ export default function Match3DPlot({
       {inlierNeedsCap && (
         <p className="text-[10px] text-gray-500 mt-1">
           Showing {shownInliers.length} of {inliers.length} real inliers, evenly sampled across all of them —{' '}
-          <button className="text-cyan-500 dark:text-cyan-400 underline" onClick={() => setShowAllInliers((s) => !s)}>
+          <button className="text-[#0E0E0E] dark:text-white underline" onClick={() => setShowAllInliers((s) => !s)}>
             {showAllInliers ? 'show sampled subset' : 'show all'}
           </button>
           .

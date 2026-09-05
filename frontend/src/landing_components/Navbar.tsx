@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Menu, Sun, Moon } from 'lucide-react';
 
 export type Page = 'landing' | 'workspace' | 'invariance' | 'registration-attempt';
 
@@ -19,6 +20,10 @@ interface NavbarProps {
 
 export default function Navbar({ onNavigate, dark = false, theme, onToggleTheme }: NavbarProps) {
   const navigate = useNavigate();
+  // This component branches on the `dark` boolean prop rather than
+  // Tailwind's `dark:` pseudo-variant, so focus rings need the same
+  // manual branching to stay black/white-themed in both modes.
+  const ringColor = dark ? 'focus-visible:ring-white' : 'focus-visible:ring-[#0E0E0E]';
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const toggleButtonRef = useRef<HTMLButtonElement>(null);
@@ -70,13 +75,13 @@ export default function Navbar({ onNavigate, dark = false, theme, onToggleTheme 
   return (
     <nav
       className={`w-full flex items-center justify-between px-6 py-3 shadow-sm relative z-[9999] ${
-        dark ? 'bg-[#0a0b0f]/90 backdrop-blur-md border-b border-white/10' : 'bg-white border-b border-gray-200'
+        dark ? 'bg-[#0a0b0f]/90 backdrop-blur-md border-b border-white/10' : 'bg-white border-b border-[#0E0E0E]/15'
       }`}
     >
       <button
         onClick={() => handleNav('workspace')}
-        className={`px-4 py-1.5 text-[10px] font-bold rounded-sm tracking-wide hover:opacity-80 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
-          dark ? 'text-black bg-cyan-400' : 'text-white bg-black'
+        className={`px-4 py-1.5 text-[10px] font-bold rounded-sm tracking-wide hover:opacity-80 transition-opacity focus:outline-none focus-visible:ring-2 ${ringColor} ${
+          dark ? 'text-black bg-white' : 'text-white bg-black'
         }`}
       >
         WORKSPACE
@@ -87,10 +92,10 @@ export default function Navbar({ onNavigate, dark = false, theme, onToggleTheme 
         <button
           onClick={() => handleNav('landing')}
           aria-label="Lunar Terra Home"
-          className="flex items-center gap-2 group focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 rounded-sm p-1"
+          className={`flex items-center gap-2 group focus:outline-none focus-visible:ring-2 ${ringColor} rounded-sm p-1`}
         >
           <div
-            className={`w-6 h-6 rounded flex items-center justify-center transition-transform group-hover:scale-105 ${dark ? 'bg-cyan-400' : 'bg-black'}`}
+            className={`w-6 h-6 rounded flex items-center justify-center transition-transform group-hover:scale-105 ${dark ? 'bg-white' : 'bg-black'}`}
           >
             <div className={`w-3 h-3 rounded-full border border-t-transparent animate-spin ${dark ? 'border-black' : 'border-white'}`}></div>
           </div>
@@ -108,11 +113,11 @@ export default function Navbar({ onNavigate, dark = false, theme, onToggleTheme 
             aria-expanded={isMenuOpen}
             aria-controls="nav-dropdown-menu"
             onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className={`w-6 h-6 flex items-center justify-center ml-1 text-xs rounded-sm hover:opacity-80 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
-              dark ? 'bg-cyan-400 text-black' : 'bg-black text-white'
+            className={`w-6 h-6 flex items-center justify-center ml-1 text-xs rounded-sm hover:opacity-80 transition-opacity focus:outline-none focus-visible:ring-2 ${ringColor} ${
+              dark ? 'bg-white text-black' : 'bg-black text-white'
             }`}
           >
-            ≡
+            <Menu className="w-3.5 h-3.5" />
           </button>
 
           {/* Dropdown Menu */}
@@ -122,13 +127,13 @@ export default function Navbar({ onNavigate, dark = false, theme, onToggleTheme 
               id="nav-dropdown-menu"
               role="menu"
               className={`absolute top-full mt-3 left-1/2 -translate-x-1/2 w-40 shadow-lg flex flex-col rounded-sm overflow-hidden z-[10000] ${
-                dark ? 'bg-[#111318] border border-white/10' : 'bg-white border border-gray-200'
+                dark ? 'bg-[#111318] border border-white/10' : 'bg-white border border-[#0E0E0E]/15'
               }`}
             >
               <button
                 role="menuitem"
                 onClick={() => handleNav('landing')}
-                className={`text-center px-4 py-3 text-[11px] font-bold tracking-wider transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
+                className={`text-center px-4 py-3 text-[11px] font-bold tracking-wider transition-colors focus:outline-none focus-visible:ring-2 ${ringColor} ${
                   dark ? 'text-gray-200 border-b border-white/10 hover:bg-white/5' : 'text-black border-b border-gray-100 hover:bg-gray-50'
                 }`}
               >
@@ -137,7 +142,7 @@ export default function Navbar({ onNavigate, dark = false, theme, onToggleTheme 
               <button
                 role="menuitem"
                 onClick={() => handleNav('workspace')}
-                className={`text-center px-4 py-3 text-[11px] font-bold tracking-wider transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
+                className={`text-center px-4 py-3 text-[11px] font-bold tracking-wider transition-colors focus:outline-none focus-visible:ring-2 ${ringColor} ${
                   dark ? 'text-gray-200 border-b border-white/10 hover:bg-white/5' : 'text-black border-b border-gray-100 hover:bg-gray-50'
                 }`}
               >
@@ -146,7 +151,7 @@ export default function Navbar({ onNavigate, dark = false, theme, onToggleTheme 
               <button
                 role="menuitem"
                 onClick={() => handleNav('invariance')}
-                className={`text-center px-4 py-3 text-[11px] font-bold tracking-wider transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
+                className={`text-center px-4 py-3 text-[11px] font-bold tracking-wider transition-colors focus:outline-none focus-visible:ring-2 ${ringColor} ${
                   dark ? 'text-gray-200 border-b border-white/10 hover:bg-white/5' : 'text-black border-b border-gray-100 hover:bg-gray-50'
                 }`}
               >
@@ -155,7 +160,7 @@ export default function Navbar({ onNavigate, dark = false, theme, onToggleTheme 
               <button
                 role="menuitem"
                 onClick={() => handleNav('registration-attempt')}
-                className={`text-center px-4 py-3 text-[11px] font-bold tracking-wider transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
+                className={`text-center px-4 py-3 text-[11px] font-bold tracking-wider transition-colors focus:outline-none focus-visible:ring-2 ${ringColor} ${
                   dark ? 'text-gray-200 hover:bg-white/5' : 'text-black hover:bg-gray-50'
                 }`}
               >
@@ -172,16 +177,16 @@ export default function Navbar({ onNavigate, dark = false, theme, onToggleTheme 
             onClick={onToggleTheme}
             aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-            className={`w-6 h-6 flex items-center justify-center rounded-sm text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
+            className={`w-6 h-6 flex items-center justify-center rounded-sm text-xs transition-colors focus:outline-none focus-visible:ring-2 ${ringColor} ${
               dark ? 'bg-white/10 text-gray-200 hover:bg-white/20' : 'bg-black/5 text-black hover:bg-black/10'
             }`}
           >
-            {theme === 'dark' ? '☀' : '☾'}
+            {theme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
           </button>
         )}
         <button
           onClick={() => navigate('/login')}
-          className={`text-[10px] font-bold tracking-wide hover:opacity-70 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${dark ? 'text-gray-300' : 'text-black'}`}
+          className={`text-[10px] font-bold tracking-wide hover:opacity-70 transition-opacity focus:outline-none focus-visible:ring-2 ${ringColor} ${dark ? 'text-gray-300' : 'text-black'}`}
         >
           LOGIN / SIGN UP
         </button>

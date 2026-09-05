@@ -191,7 +191,7 @@ export default function StepDetection({ data }: { data: WorkspaceData }) {
               <button
                 onClick={() => setShowShadow((s) => !s)}
                 className={`px-3 py-1.5 text-[10px] font-mono uppercase tracking-wide border rounded-sm transition-colors ${
-                  showShadow ? 'bg-orange-500 text-black border-orange-500' : 'bg-gray-50 dark:bg-white/[0.03] text-gray-400 border-gray-300 dark:border-white/15 hover:border-cyan-400/60'
+                  showShadow ? 'bg-orange-500 text-black border-orange-500' : 'bg-gray-50 dark:bg-white/[0.03] text-gray-400 border-gray-300 dark:border-white/15 hover:border-[#0E0E0E]/60 dark:hover:border-white/60'
                 }`}
               >
                 Shadow (at capture)
@@ -201,7 +201,7 @@ export default function StepDetection({ data }: { data: WorkspaceData }) {
               <button
                 onClick={() => setShowDetectedCraters((s) => !s)}
                 className={`px-3 py-1.5 text-[10px] font-mono uppercase tracking-wide border rounded-sm transition-colors ${
-                  showDetectedCraters ? 'bg-cyan-400 text-black border-cyan-400' : 'bg-gray-50 dark:bg-white/[0.03] text-gray-400 border-gray-300 dark:border-white/15 hover:border-cyan-400/60'
+                  showDetectedCraters ? 'bg-[#0E0E0E] text-white border-[#0E0E0E] dark:bg-white dark:text-[#0E0E0E] dark:border-white' : 'bg-gray-50 dark:bg-white/[0.03] text-gray-400 border-gray-300 dark:border-white/15 hover:border-[#0E0E0E]/60 dark:hover:border-white/60'
                 }`}
               >
                 Detected craters (YOLOv8)
@@ -221,9 +221,9 @@ export default function StepDetection({ data }: { data: WorkspaceData }) {
               step={0.01}
               value={craterConfThreshold}
               onChange={(e) => setCraterConfThreshold(parseFloat(e.target.value))}
-              className="w-40 accent-cyan-400"
+              className="w-40 accent-[#0E0E0E] dark:accent-white"
             />
-            <span className="text-[9px] font-mono text-cyan-300 w-10">{craterConfThreshold.toFixed(2)}</span>
+            <span className="text-[9px] font-mono text-[#0E0E0E] dark:text-white w-10">{craterConfThreshold.toFixed(2)}</span>
             <span className="text-[9px] text-gray-500">
               Lower reveals more of the model's real (lower-confidence) detections — also more false positives.
             </span>
@@ -303,8 +303,8 @@ export default function StepDetection({ data }: { data: WorkspaceData }) {
         )}
 
         {showDetectedCraters && data.craterDetections && (
-          <p className="text-[10px] text-cyan-600 mt-2 flex items-center gap-1.5">
-            <span className="inline-block w-3 h-3 rounded-full border-2 border-dashed border-cyan-500" /> YOLOv8
+          <p className="text-[10px] text-[#0E0E0E] dark:text-white mt-2 flex items-center gap-1.5">
+            <span className="inline-block w-3 h-3 rounded-full border-2 border-dashed border-[#0E0E0E] dark:border-white" /> YOLOv8
             model detections on this pair's own pixels (hover/click for confidence and radius) — distinct from the
             purple catalog markers above, which are a pre-published crater catalog lookup available only for the 4
             real Chandrayaan-2 frames. This model's real detection density varies a lot from image to image; a run
@@ -341,13 +341,13 @@ const ModeToggle = ({ mode, setMode }: { mode: 'lines' | 'zoom'; setMode: (m: 'l
   <div className="flex text-[10px] font-mono uppercase tracking-wide border border-gray-300 dark:border-white/15 rounded-sm overflow-hidden">
     <button
       onClick={() => setMode('lines')}
-      className={`px-3 py-1.5 ${mode === 'lines' ? 'bg-cyan-400 text-black' : 'bg-gray-50 dark:bg-white/[0.03] text-gray-400 hover:bg-white/10'}`}
+      className={`px-3 py-1.5 ${mode === 'lines' ? 'bg-[#0E0E0E] text-white dark:bg-white dark:text-[#0E0E0E]' : 'bg-gray-50 dark:bg-white/[0.03] text-gray-400 hover:bg-white/10'}`}
     >
       Correspondence lines
     </button>
     <button
       onClick={() => setMode('zoom')}
-      className={`px-3 py-1.5 border-l border-gray-300 dark:border-white/15 ${mode === 'zoom' ? 'bg-cyan-400 text-black' : 'bg-gray-50 dark:bg-white/[0.03] text-gray-400 hover:bg-white/10'}`}
+      className={`px-3 py-1.5 border-l border-gray-300 dark:border-white/15 ${mode === 'zoom' ? 'bg-[#0E0E0E] text-white dark:bg-white dark:text-[#0E0E0E]' : 'bg-gray-50 dark:bg-white/[0.03] text-gray-400 hover:bg-white/10'}`}
     >
       Zoom &amp; pan
     </button>
