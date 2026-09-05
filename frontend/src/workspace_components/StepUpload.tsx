@@ -27,7 +27,7 @@ export default function StepUpload({
 }: Props) {
   const [matcher, setMatcher] = useState<RunParams['matcher']>('auto');
   const [illumMode, setIllumMode] = useState<RunParams['illum_mode']>('gradient');
-  const [sensorType, setSensorType] = useState<RunParams['sensor_type']>('ohrc');
+  const [sensorType, setSensorType] = useState<RunParams['sensor_type']>('tmc');
   const [healthy, setHealthy] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -108,8 +108,8 @@ export default function StepUpload({
           onChange={(v) => setSensorType(v as RunParams['sensor_type'])}
           disabled={loading}
           options={[
+            { value: 'tmc', label: 'TMC-2 (Chandrayaan-2)' },
             { value: 'ohrc', label: 'OHRC (Chandrayaan-2)' },
-            { value: 'tmc', label: 'TMC' },
             { value: 'iirs', label: 'IIRS' },
             { value: 'nac', label: 'LRO NAC' },
           ]}

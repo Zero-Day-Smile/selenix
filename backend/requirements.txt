@@ -12,6 +12,9 @@ pvl
 pds4-tools
 reportlab
 matplotlib
+geopandas
+shapely
+rasterio
 
 # Optional deep matcher (LoFTR via kornia). ~700MB CPU wheel — install separately if
 # space/bandwidth is a concern; the pipeline falls back to classical SIFT cleanly if absent:

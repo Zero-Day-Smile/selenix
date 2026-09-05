@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from backend.pipeline.run_pipeline import run_registration, run_registration_manual_seed
-from backend.pipeline import memory, synthetic, ingestion, preprocessing, crater_catalog, geo_extent_guard, tmc_geometry, ancillary_readers, groq_interpret, orbital_geometry, gazetteer, report_generator, terrain_context_report, area_intelligence_report
+from backend.pipeline import memory, synthetic, ingestion, preprocessing, crater_catalog, geo_extent_guard, tmc_geometry, ancillary_readers, groq_interpret, orbital_geometry, gazetteer, report_generator, terrain_context_report, area_intelligence_report, terrain_roughness
 import json as _json
 import cv2 as _cv2
 
@@ -358,6 +358,23 @@ async def api_area_intelligence_report(run_id: str):
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@app.get("/api/terrain_roughness/{run_id}")
+async def api_terrain_roughness(run_id: str):
+    """Real-data terrain roughness map for one run -- see
+    backend/pipeline/terrain_roughness.py's module docstring for exactly
+    which real geospatial libraries back each part (geopandas/shapely
+    for the real spatial join, rasterio for the real DEM coverage
+    check). Genuinely blocking work (real geopandas/rasterio calls) --
+    run off the event loop, same reasoning as the other real-computation
+    endpoints above."""
+    if not os.path.exists(os.path.join(RUNS_DIR, run_id, "metrics.json")):
+        raise HTTPException(404, detail=f"unknown run_id {run_id!r}")
+    try:
+        return await asyncio.to_thread(terrain_roughness.compute_terrain_roughness, run_id, RUNS_DIR)
+    except Exception as e:
+        raise HTTPException(500, detail=f"could not compute real terrain roughness: {e}")
 
 
 @app.get("/api/hardcases")

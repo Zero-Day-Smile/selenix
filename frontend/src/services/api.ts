@@ -449,6 +449,47 @@ export async function fetchOrbitalGeometry(runId: string): Promise<OrbitalGeomet
   }
 }
 
+// Real-data terrain roughness map -- see
+// backend/pipeline/terrain_roughness.py's module docstring for the real
+// geospatial libraries behind each part (geopandas/shapely spatial join
+// for the crater-catalog binning, rasterio for the real LOLA DEM
+// coverage check). GeoJSON typed loosely (via `any`) rather than
+// re-declaring the full GeoJSON spec here -- Leaflet's own L.geoJSON()
+// consumes it directly.
+export interface TerrainRoughnessDemNote {
+  available: boolean;
+  sufficient?: boolean;
+  px_per_cell_w?: number;
+  px_per_cell_h?: number;
+  note?: string;
+  reason?: string;
+}
+
+export interface TerrainRoughnessResult {
+  title: string;
+  formula: string;
+  grid_n: number;
+  caveat: string;
+  footprint: [number, number][] | null;
+  available: boolean;
+  reason?: string;
+  max_score?: number;
+  crater_count?: number;
+  cells_geojson?: any;
+  craters_geojson?: any;
+  dem_note?: TerrainRoughnessDemNote;
+}
+
+export async function fetchTerrainRoughness(runId: string): Promise<TerrainRoughnessResult | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/terrain_roughness/${runId}`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 // Real lunar surface imagery (ASU's public Lunaserv WMS, LRO WAC global
 // mosaic) centered on a real lat/lon -- see backend/app/main.py's
 // _fetch_moon_context_image docstring. Just a URL (the <img> tag itself
@@ -772,7 +813,7 @@ export async function runSimulatedPipeline(
 
   const result: RunResultOk = {
     status: 'ok',
-    sensor_type: params.sensor_type || 'ohrc',
+    sensor_type: params.sensor_type || 'tmc',
     matcher_used:
       (params.matcher === 'deep' ? 'deep_loftr' : params.matcher === 'classical' ? 'classical_sift' : 'classical_sift') +
       ' (simulated)',
