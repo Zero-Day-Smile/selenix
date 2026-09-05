@@ -20,7 +20,8 @@
 // ramp, size scaling, reveal/camera animation, hover thumbnail, threshold
 // plane, camera presets -- none of it changes a single real number; it all
 // reads directly off the same real per-point data the flat version showed.
-import { useEffect, useMemo, useRef, useState } from 'react';
+// workspace_components/Match3DPlot.tsx
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import createPlotlyComponent from 'react-plotly.js/factory';
 import Plotly from 'plotly.js-dist-min';
 import ChartCard from './ChartCard';
@@ -35,23 +36,22 @@ const REVEAL_MS = 1300;
 const INTRO_ORBIT_MS = 1300;
 const PRESET_TRANSITION_MS = 800;
 
-// Default (isometric) + preset camera eyes. Same "eye" convention Plotly
-// scene cameras already use; these are just named starting points, not
-// new data.
-const CAMERA_ISOMETRIC = { x: 1.4, y: -1.4, z: 1.1 };
-const CAMERA_TOP_DOWN = { x: 0.0001, y: 0.0001, z: 2.6 }; // near-zero, not exactly 0 -- Plotly's gimbal breaks at an exact top-down eye
+// Slightly elevated isometric eye to better show the Z-axis depth
+const CAMERA_ISOMETRIC = { x: 1.5, y: -1.5, z: 1.2 };
+const CAMERA_TOP_DOWN = { x: 0.0001, y: 0.0001, z: 2.6 };
 const CAMERA_SIDE_ON = { x: 2.4, y: 0.0001, z: 0.25 };
 
 function easeOutCubic(t: number): number {
   return 1 - Math.pow(1 - t, 3);
 }
+
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
+
 function lerpEye(a: { x: number; y: number; z: number }, b: { x: number; y: number; z: number }, t: number) {
   return { x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t), z: lerp(a.z, b.z, t) };
 }
-
 
 interface TextureGrid {
   z: number[][];
@@ -93,12 +93,18 @@ function useImageTexture(url: string | null, shape: [number, number] | null): { 
       }
       const surfacecolor: number[][] = [];
       const z: number[][] = [];
+      
       for (let row = 0; row < gridH; row++) {
         const colorRow: number[] = [];
         const zRow: number[] = [];
         for (let col = 0; col < gridW; col++) {
           const idx = (row * gridW + col) * 4;
-          colorRow.push(imgData.data[idx]);
+          // Calculate true luminance (Rec. 601 luma) instead of just the red channel
+          const r = imgData.data[idx];
+          const g = imgData.data[idx + 1];
+          const b = imgData.data[idx + 2];
+          const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+          colorRow.push(luminance);
           zRow.push(0);
         }
         surfacecolor.push(colorRow);
@@ -139,6 +145,46 @@ function StatBox({ label, value, accent }: { label: string; value: string; accen
   );
 }
 
+// Custom hook to manage camera animations safely
+function useCameraAnimation(initialEye: typeof CAMERA_ISOMETRIC) {
+  const [activeCamera, setActiveCamera] = useState<typeof CAMERA_ISOMETRIC | null>(null);
+  const lastKnown = useRef(initialEye);
+  const raf = useRef<number | null>(null);
+
+  const animateTo = useCallback((target: typeof CAMERA_ISOMETRIC, durationMs: number, onComplete?: () => void) => {
+    if (raf.current) cancelAnimationFrame(raf.current);
+    const start = lastKnown.current;
+    const t0 = performance.now();
+
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - t0) / durationMs);
+      const eased = easeOutCubic(t);
+      setActiveCamera(lerpEye(start, target, eased));
+
+      if (t < 1) {
+        raf.current = requestAnimationFrame(tick);
+      } else {
+        lastKnown.current = target;
+        if (onComplete) onComplete();
+      }
+    };
+    raf.current = requestAnimationFrame(tick);
+  }, []);
+
+  const updateLastKnown = useCallback((cam: typeof CAMERA_ISOMETRIC) => {
+    if (cam) lastKnown.current = cam;
+  }, []);
+
+  return { activeCamera, setActiveCamera, animateTo, updateLastKnown, rafRef: raf, lastKnown };
+}
+
+// Safe helper for Plotly events
+const getPointData = (e: Readonly<Plotly.PlotMouseEvent>): MatchPoint | null => {
+  const pt = e.points?.[0];
+  if (!pt || !pt.data?.customdata) return null;
+  return (pt.data.customdata[pt.pointNumber as number] as unknown) as MatchPoint;
+};
+
 export default function Match3DPlot({
   refUrl,
   refShape,
@@ -146,12 +192,6 @@ export default function Match3DPlot({
   height = 520,
   srcUrl = null,
   srcShape = null,
-  // Real per-point RANSAC/MAGSAC++ reprojection-error threshold that
-  // actually decided inlier/outlier for this run -- pass the live
-  // threshold when the caller has one (StepRANSAC's own adjustable
-  // slider value), otherwise the backend's real configured default
-  // (geometry.py::estimate_homography's reproj_thresh=3.0). Never a
-  // cosmetic/made-up cutoff.
   reprojThresholdPx = 3.0,
 }: {
   refUrl: string | null;
@@ -168,19 +208,15 @@ export default function Match3DPlot({
   const [selected, setSelected] = useState<{ point: MatchPoint; index: number; trace: string } | null>(null);
   const [hovered, setHovered] = useState<MatchPoint | null>(null);
 
-  // Reveal animation progress (0 -> 1, real z scaled by this during the
-  // intro) and the intro camera drift. After the intro finishes, camera
-  // control is released (layout stops passing `camera`) so drag-to-orbit
-  // takes over from wherever the drift left off, undisturbed.
   const [revealProgress, setRevealProgress] = useState(0);
-  const [introCamera, setIntroCamera] = useState<typeof CAMERA_ISOMETRIC | null>({ x: 0.05, y: -2.6, z: 2.2 });
-  const [presetCamera, setPresetCamera] = useState<typeof CAMERA_ISOMETRIC | null>(null);
-  const lastKnownCamera = useRef<typeof CAMERA_ISOMETRIC>(CAMERA_ISOMETRIC);
-  const rafRef = useRef<number | null>(null);
+  const { activeCamera, setActiveCamera, animateTo, updateLastKnown, rafRef, lastKnown } = useCameraAnimation(CAMERA_ISOMETRIC);
 
   useEffect(() => {
     const t0 = performance.now();
     const introStartEye = { x: 0.05, y: -2.6, z: 2.2 };
+    
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+
     const tick = (now: number) => {
       const elapsed = now - t0;
       const revealT = Math.min(1, elapsed / REVEAL_MS);
@@ -188,58 +224,34 @@ export default function Match3DPlot({
 
       const orbitT = Math.min(1, elapsed / INTRO_ORBIT_MS);
       const eased = easeOutCubic(orbitT);
-      setIntroCamera(lerpEye(introStartEye, CAMERA_ISOMETRIC, eased));
+      setActiveCamera(lerpEye(introStartEye, CAMERA_ISOMETRIC, eased));
 
       if (revealT < 1 || orbitT < 1) {
         rafRef.current = requestAnimationFrame(tick);
       } else {
-        lastKnownCamera.current = CAMERA_ISOMETRIC;
-        setIntroCamera(null); // release camera control to the user
+        lastKnown.current = CAMERA_ISOMETRIC;
+        setActiveCamera(null); 
       }
     };
     rafRef.current = requestAnimationFrame(tick);
+    
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refUrl]);
-
-  const animateCameraTo = (target: typeof CAMERA_ISOMETRIC) => {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    const start = lastKnownCamera.current;
-    const t0 = performance.now();
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - t0) / PRESET_TRANSITION_MS);
-      const eased = easeOutCubic(t);
-      const eye = lerpEye(start, target, eased);
-      setPresetCamera(eye);
-      if (t < 1) {
-        rafRef.current = requestAnimationFrame(tick);
-      } else {
-        lastKnownCamera.current = target;
-        // Keep presetCamera set (controlled) at the final resting
-        // position -- react-plotly.js needs a stable camera value to not
-        // snap back; the user can still drag from here, and onUpdate
-        // below keeps lastKnownCamera in sync with whatever they do next.
-      }
-    };
-    rafRef.current = requestAnimationFrame(tick);
-  };
+  }, [refUrl, rafRef, lastKnown, setActiveCamera]);
 
   const withError = useMemo(() => matchPoints.filter((p) => p.reproj_error_px != null), [matchPoints]);
   const inliers = useMemo(() => withError.filter((p) => p.inlier), [withError]);
   const outliers = useMemo(() => withError.filter((p) => !p.inlier), [withError]);
   const excludedCount = matchPoints.length - withError.length;
   const inlierNeedsCap = inliers.length > INLIER_DISPLAY_CAP;
+  
   const shownInliers = useMemo(
     () => (showAllInliers || !inlierNeedsCap ? inliers : evenlySample(inliers, INLIER_DISPLAY_CAP)),
     [inliers, showAllInliers, inlierNeedsCap]
   );
 
-  // Real, live-recomputed stats off the actual rendered/underlying data --
-  // never hardcoded. Uses the full real set (not the capped display
-  // subset), since the capping is a rendering concession, not a change in
-  // what's real.
   const stats = useMemo(() => {
     const errs = withError.map((p) => p.reproj_error_px as number);
     const mean = errs.length ? errs.reduce((a, b) => a + b, 0) / errs.length : null;
@@ -254,14 +266,123 @@ export default function Match3DPlot({
     };
   }, [matchPoints, withError, inliers, outliers]);
 
-  // Shared color/size domain across BOTH traces (real min/max of the
-  // actual plotted errors) so color is directly comparable between
-  // inliers and outliers, not two independently-stretched scales.
   const { errMin, errMax } = useMemo(() => {
     const errs = withError.map((p) => p.reproj_error_px as number);
     if (!errs.length) return { errMin: 0, errMax: 1 };
     return { errMin: Math.min(...errs), errMax: Math.max(...errs, 1e-6) };
   }, [withError]);
+
+  const traces = useMemo(() => {
+    if (!refShape) return [];
+    const [refH, refW] = refShape;
+    const isDark = theme === 'dark';
+    const t: Partial<Plotly.PlotData>[] = [];
+
+    if (texture) {
+      t.push({
+        type: 'surface',
+        x: texture.x,
+        y: texture.y.map((v) => refH - v),
+        z: texture.z,
+        surfacecolor: texture.surfacecolor,
+        colorscale: [[0, 'rgb(0,0,0)'], [1, 'rgb(255,255,255)']],
+        cmin: 0,
+        cmax: 255,
+        showscale: false,
+        opacity: 1,
+        hoverinfo: 'skip',
+        // Flat, unshaded lighting so the photo doesn't catch glare
+        lighting: { ambient: 1, diffuse: 0, specular: 0, roughness: 1, fresnel: 0 },
+      } as Partial<Plotly.PlotData>);
+    }
+
+    t.push({
+      type: 'surface',
+      x: [0, refW],
+      y: [0, refH],
+      z: [[reprojThresholdPx, reprojThresholdPx], [reprojThresholdPx, reprojThresholdPx]],
+      colorscale: [[0, 'rgb(250,204,21)'], [1, 'rgb(250,204,21)']],
+      showscale: false,
+      opacity: 0.2,
+      hoverinfo: 'skip',
+      // Flat lighting prevents the plane from turning white at angles
+      lighting: { ambient: 1, diffuse: 0, specular: 0, roughness: 1, fresnel: 0 },
+      name: `threshold (${reprojThresholdPx.toFixed(2)}px)`,
+    } as Partial<Plotly.PlotData>);
+
+    const pointTrace = (pts: MatchPoint[], name: string, symbol: string): Partial<Plotly.PlotData> => {
+      const errs = pts.map((p) => p.reproj_error_px as number);
+      const sizes = errs.map((e) => {
+        const tVal = Math.min(1, Math.max(0, (e - errMin) / (errMax - errMin || 1)));
+        return 3 + tVal * 7; 
+      });
+      return {
+        type: 'scatter3d',
+        mode: 'markers',
+        name,
+        x: pts.map((p) => p.ref_x),
+        y: pts.map((p) => refH - p.ref_y),
+        z: errs.map((e) => e * revealProgress),
+        marker: {
+          size: sizes,
+          color: errs,
+          colorscale: 'Viridis',
+          cmin: errMin,
+          cmax: errMax,
+          showscale: name === 'Outliers',
+          colorbar: name === 'Outliers' ? { title: { text: 'reproj. error (px)' }, thickness: 12, len: 0.6, x: 1.02 } : undefined,
+          symbol,
+          opacity: name === 'Inliers' ? 0.85 : 0.95,
+          line: { width: 1, color: isDark ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)' },
+        },
+        customdata: pts as unknown as Plotly.Datum[],
+        text: pts.map(
+          (p, i) =>
+            `match #${i}<br>reprojection error: ${(p.reproj_error_px as number).toFixed(2)}px<br>confidence: ${
+              p.confidence != null ? p.confidence.toFixed(3) : 'n/a'
+            }<br><i>click to pin details</i>`
+        ),
+        hovertemplate: `%{text}<extra>${name}</extra>`,
+      } as Partial<Plotly.PlotData>;
+    };
+
+    t.push(pointTrace(outliers, 'Outliers', 'diamond'));
+    t.push(pointTrace(shownInliers, 'Inliers', 'circle'));
+
+    return t;
+  }, [texture, refShape, theme, reprojThresholdPx, errMin, errMax, outliers, shownInliers, revealProgress]);
+
+  // Memoizing Layout is CRITICAL for high interactivity. 
+  // It stops React-Plotly from redrawing the WebGL canvas on every hover/re-render.
+  const layout = useMemo(() => {
+    if (!refShape) return {};
+    const [refH, refW] = refShape;
+    const isDark = theme === 'dark';
+    const paperBg = isDark ? '#111318' : '#ffffff';
+    const fontColor = isDark ? '#c4c9d4' : '#374151';
+    const gridColor = isDark ? '#3a3f4c' : '#e5e7eb';
+    const axisBgColor = isDark ? '#181b21' : '#f8fafc'; // Subtle depth walls
+
+    return {
+      autosize: true,
+      margin: { l: 0, r: 0, t: 0, b: 0 },
+      paper_bgcolor: paperBg,
+      font: { color: fontColor, size: 11 },
+      // Tells Plotly to persist user interactions (pan/zoom/rotate) across component re-renders
+      uirevision: 'true',
+      scene: {
+        // 'manual' strictly enforces the Z-height stretch so it doesn't look flat!
+        aspectmode: 'manual', 
+        aspectratio: { x: 1, y: refH / (refW || 1), z: 0.6 },
+        xaxis: { title: 'x (px)', range: [0, refW], gridcolor: gridColor, backgroundcolor: axisBgColor, showbackground: true },
+        yaxis: { title: 'y (px)', range: [0, refH], gridcolor: gridColor, backgroundcolor: axisBgColor, showbackground: true },
+        zaxis: { title: 'reproj. error (px)', gridcolor: gridColor, backgroundcolor: axisBgColor, showbackground: true },
+        ...(activeCamera ? { camera: { eye: activeCamera } } : {}),
+      },
+      legend: { x: 0, y: 1, font: { size: 11, color: fontColor } },
+      transition: { duration: 0 },
+    };
+  }, [refShape, theme, activeCamera]);
 
   if (!refShape || !refUrl) {
     return (
@@ -273,109 +394,12 @@ export default function Match3DPlot({
     );
   }
 
-  const [refH, refW] = refShape;
-  const isDark = theme === 'dark';
-  const paperBg = isDark ? '#111318' : '#ffffff';
-  const fontColor = isDark ? '#c4c9d4' : '#374151';
-  const gridColor = isDark ? '#3a3f4c' : '#e5e7eb';
-
-  const traces: Partial<Plotly.PlotData>[] = [];
-
-  if (texture) {
-    traces.push({
-      type: 'surface',
-      x: texture.x,
-      y: texture.y.map((v) => refH - v),
-      z: texture.z,
-      surfacecolor: texture.surfacecolor,
-      colorscale: [
-        [0, 'rgb(0,0,0)'],
-        [1, 'rgb(255,255,255)'],
-      ],
-      cmin: 0,
-      cmax: 255,
-      showscale: false,
-      opacity: 1,
-      hoverinfo: 'skip',
-      lighting: { ambient: 1, diffuse: 0 },
-    } as Partial<Plotly.PlotData>);
-  }
-
-  // Threshold plane: a flat translucent surface at the real
-  // reprojection-error cutoff -- points below it are inliers, above it
-  // are outliers, by the exact same real threshold the pipeline used.
-  traces.push({
-    type: 'surface',
-    x: [0, refW],
-    y: [0, refH],
-    z: [
-      [reprojThresholdPx, reprojThresholdPx],
-      [reprojThresholdPx, reprojThresholdPx],
-    ],
-    colorscale: [
-      [0, 'rgb(250,204,21)'],
-      [1, 'rgb(250,204,21)'],
-    ],
-    showscale: false,
-    opacity: 0.16,
-    hoverinfo: 'skip',
-    lighting: { ambient: 1, diffuse: 0 },
-    name: `threshold (${reprojThresholdPx.toFixed(2)}px)`,
-  } as Partial<Plotly.PlotData>);
-
-  const pointTrace = (pts: MatchPoint[], name: string, symbol: string): Partial<Plotly.PlotData> => {
-    const errs = pts.map((p) => p.reproj_error_px as number);
-    const sizes = errs.map((e) => {
-      const t = Math.min(1, Math.max(0, (e - errMin) / (errMax - errMin || 1)));
-      return 2.5 + t * 6; // near-zero error -> tight small dot; near-max error -> larger
-    });
-    return {
-      type: 'scatter3d',
-      mode: 'markers',
-      name,
-      x: pts.map((p) => p.ref_x),
-      y: pts.map((p) => refH - p.ref_y),
-      // Reveal animation: real z scaled by revealProgress (0->1). Once the
-      // intro finishes revealProgress is 1 and this is exactly the real
-      // per-point value, nothing altered.
-      z: errs.map((e) => e * revealProgress),
-      marker: {
-        size: sizes,
-        color: errs,
-        colorscale: 'Viridis',
-        cmin: errMin,
-        cmax: errMax,
-        showscale: name === 'Outliers',
-        colorbar: name === 'Outliers' ? { title: { text: 'reproj. error (px)' }, thickness: 12, len: 0.6, x: 1.02 } : undefined,
-        symbol,
-        opacity: name === 'Inliers' ? 0.75 : 0.85,
-        line: { width: 0.5, color: isDark ? '#00000080' : '#ffffff80' },
-      },
-      customdata: pts as unknown as Plotly.Datum[],
-      text: pts.map(
-        (p, i) =>
-          `match #${i}<br>reprojection error: ${(p.reproj_error_px as number).toFixed(2)}px<br>confidence: ${
-            p.confidence != null ? p.confidence.toFixed(3) : 'n/a'
-          }<br><i>click to pin details</i>`
-      ),
-      hovertemplate: `%{text}<extra>${name}</extra>`,
-    } as Partial<Plotly.PlotData>;
-  };
-
-  traces.push(pointTrace(outliers, 'Outliers', 'diamond'));
-  traces.push(pointTrace(shownInliers, 'Inliers', 'circle'));
-
-  const activeCamera = introCamera ?? presetCamera ?? undefined;
-
-  // Hover-highlighted point's position mapped into the small source-image
-  // inset panel below, real coordinates scaled by the inset's own real
-  // rendered size vs. the real srcShape.
   const INSET_SIZE = 130;
-  const srcDot =
+  const srcDotStyle =
     hovered && srcShape
       ? {
-          left: (hovered.src_x / srcShape[1]) * INSET_SIZE,
-          top: (hovered.src_y / srcShape[0]) * INSET_SIZE,
+          left: `${(hovered.src_x / srcShape[1]) * 100}%`,
+          top: `${(hovered.src_y / srcShape[0]) * 100}%`,
         }
       : null;
 
@@ -389,48 +413,28 @@ export default function Match3DPlot({
         <div className="relative w-full h-full">
           <Plot
             data={traces}
-            layout={{
-              autosize: true,
-              margin: { l: 0, r: 0, t: 0, b: 0 },
-              paper_bgcolor: paperBg,
-              font: { color: fontColor, size: 11 },
-              scene: {
-                xaxis: { title: 'x (px)', range: [0, refW], gridcolor: gridColor, backgroundcolor: paperBg },
-                yaxis: { title: 'y (px)', range: [0, refH], gridcolor: gridColor, backgroundcolor: paperBg },
-                zaxis: { title: 'reproj. error (px)', gridcolor: gridColor, backgroundcolor: paperBg },
-                aspectmode: 'data',
-                ...(activeCamera ? { camera: { eye: activeCamera } } : {}),
-              },
-              legend: { x: 0, y: 1, font: { size: 11, color: fontColor } },
-              transition: { duration: 0 },
-            }}
+            layout={layout}
             config={{ displaylogo: false, responsive: true }}
             style={{ width: '100%', height: '100%' }}
             useResizeHandler
             onClick={(e) => {
-              const pt = e.points?.[0];
-              if (!pt || !pt.data?.customdata) return;
-              const idx = pt.pointNumber as number;
-              const matchPoint = pt.data.customdata[idx] as unknown as MatchPoint;
-              if (matchPoint) setSelected({ point: matchPoint, index: idx, trace: String(pt.data.name) });
+              const matchPoint = getPointData(e);
+              if (matchPoint && e.points?.[0]) {
+                setSelected({ point: matchPoint, index: e.points[0].pointNumber as number, trace: String(e.points[0].data.name) });
+              }
             }}
             onHover={(e) => {
-              const pt = e.points?.[0];
-              if (!pt || !pt.data?.customdata) return;
-              const idx = pt.pointNumber as number;
-              const matchPoint = pt.data.customdata[idx] as unknown as MatchPoint;
+              const matchPoint = getPointData(e);
               if (matchPoint) setHovered(matchPoint);
             }}
             onUnhover={() => setHovered(null)}
-            onUpdate={(figure) => {
-              const cam = (figure.layout as unknown as { scene?: { camera?: { eye?: typeof CAMERA_ISOMETRIC } } })
-                ?.scene?.camera?.eye;
-              if (cam && introCamera === null) lastKnownCamera.current = cam;
+            onRelayout={(figure: any) => {
+              // Only update last known camera from user drags, stops interference
+              const cam = figure?.['scene.camera']?.eye;
+              if (cam && activeCamera === null) updateLastKnown(cam);
             }}
           />
 
-          {/* Persistent corner stats overlay -- real, live-recomputed, not
-              hardcoded (see `stats` above). */}
           <div className="absolute top-2 right-2 bg-white/85 dark:bg-black/70 backdrop-blur-sm border border-gray-200 dark:border-white/10 rounded-sm px-2.5 py-2 text-[10px] font-mono pointer-events-none space-y-0.5">
             <div>
               <span style={{ color: '#4ade80' }}>{stats.inlierCount} inliers</span>
@@ -443,7 +447,6 @@ export default function Match3DPlot({
             </div>
           </div>
 
-          {/* Camera presets */}
           <div className="absolute bottom-2 left-2 flex gap-1 text-[9px] font-mono uppercase tracking-wide">
             {[
               { label: 'Isometric', eye: CAMERA_ISOMETRIC },
@@ -452,7 +455,7 @@ export default function Match3DPlot({
             ].map((p) => (
               <button
                 key={p.label}
-                onClick={() => animateCameraTo(p.eye)}
+                onClick={() => animateTo(p.eye, PRESET_TRANSITION_MS)}
                 className="px-2 py-1 rounded-sm border border-gray-300 dark:border-white/15 bg-white/80 dark:bg-black/60 text-gray-600 dark:text-gray-300 hover:border-[#0E0E0E]/60 dark:hover:border-white/60 hover:text-[#0E0E0E] dark:hover:text-white backdrop-blur-sm transition-colors"
               >
                 {p.label}
@@ -460,18 +463,16 @@ export default function Match3DPlot({
             ))}
           </div>
 
-          {/* Hover source-image inset -- shows where on the real SOURCE
-              image the hovered reference-side point actually came from. */}
           {srcUrl && srcShape && (
             <div
               className="absolute bottom-2 right-2 border border-gray-300 dark:border-white/15 rounded-sm overflow-hidden bg-black/40 backdrop-blur-sm"
               style={{ width: INSET_SIZE, height: INSET_SIZE, opacity: hovered ? 1 : 0.35 }}
             >
               <img src={srcUrl} alt="Source (hover a point to locate it here)" className="w-full h-full object-cover" />
-              {srcDot && (
+              {srcDotStyle && (
                 <span
-                  className="absolute w-2.5 h-2.5 rounded-full border-2 border-white shadow"
-                  style={{ left: srcDot.left - 5, top: srcDot.top - 5, background: '#facc15' }}
+                  className="absolute w-2.5 h-2.5 rounded-full border-2 border-white shadow -translate-x-1/2 -translate-y-1/2"
+                  style={{ ...srcDotStyle, background: '#facc15' }}
                 />
               )}
               <span className="absolute bottom-0.5 left-1 text-[8px] text-white/80 font-mono">source</span>
