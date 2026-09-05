@@ -29,6 +29,51 @@ from . import pds_readers
 
 PDS_EXTENSIONS = {".xml", ".img", ".lbl"}
 
+# EXIF tag ids (per the standard Exif spec, not this project's own
+# invention) that only ever get written by an actual physical camera --
+# no real satellite/orbital product in this project's real data (PDS3,
+# PDS4, or the plain PNG previews standing in for them) carries any of
+# these. This is a real, checkable fact about the file, not a fabricated
+# "is this the moon" classifier -- it only ever fires on genuine
+# consumer-camera photos (a phone/DSLR JPEG), which is exactly the
+# failure mode this guards against (e.g. a user accidentally uploading
+# an ordinary photo, which the pipeline would otherwise run real SIFT
+# matching on and present meaningless "matches" for, as if it were a
+# real analysis).
+_EXIF_MAKE = 271
+_EXIF_MODEL = 272
+_EXIF_GPS_INFO = 34853
+_EXIF_DATETIME_ORIGINAL = 36867
+_CAMERA_EXIF_TAGS = {_EXIF_MAKE, _EXIF_MODEL, _EXIF_GPS_INFO, _EXIF_DATETIME_ORIGINAL}
+
+
+def _reject_if_camera_photo(path: str) -> None:
+    """Raises ValueError if the file's own real EXIF metadata says a
+    camera took it. Fails open (never raises) for any file this can't
+    read EXIF from at all -- PDS products, most PNGs, and TIFFs without
+    EXIF all pass through silently, exactly as before; this only ever
+    catches a file that is positively, verifiably a camera photo."""
+    try:
+        from PIL import Image
+        with Image.open(path) as img:
+            exif = img.getexif()
+            if not exif:
+                return
+            found = {tag: exif[tag] for tag in _CAMERA_EXIF_TAGS if tag in exif}
+    except Exception:
+        return  # not readable as EXIF at all -- nothing to flag
+
+    if found:
+        make = found.get(_EXIF_MAKE)
+        model = found.get(_EXIF_MODEL)
+        detail = f" (Make: {make!r}, Model: {model!r})" if (make or model) else ""
+        raise ValueError(
+            f"This file's own EXIF metadata says it was taken by a camera{detail}, not a "
+            f"satellite/orbital imaging product. This tool registers Chandrayaan-2/LRO lunar "
+            f"imagery only -- please upload a real TMC-2/OHRC/IIRS or LRO NAC product (or a "
+            f"plain grayscale preview of one), not an ordinary photo."
+        )
+
 
 @dataclass
 class LoadedImage:
@@ -80,6 +125,8 @@ def load_image(path: str) -> LoadedImage:
             warnings=result.warnings,
             geometry=result.geometry,
         )
+
+    _reject_if_camera_photo(path)
 
     arr = None
     if ext in (".tif", ".tiff") and tifffile is not None:

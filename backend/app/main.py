@@ -5,6 +5,7 @@ import os
 import shutil
 import uuid
 
+import psutil
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -80,6 +81,47 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.exception_handler(Exception)
+async def _unhandled_exception_handler(request, exc: Exception):
+    """Without this, an uncaught exception (e.g. ingestion.load_image()
+    failing on a genuinely invalid upload -- not a moon image at all, a
+    corrupt file, etc.) propagates all the way past CORSMiddleware to
+    Starlette's own outermost error-handling layer, which returns a
+    plain-text 500 with NO CORS headers on it. The browser then refuses
+    to let JS read that response at all, so the frontend's fetch()
+    throws a generic network-level error -- indistinguishable, from the
+    frontend's point of view, from the backend actually being
+    unreachable, so it was silently falling back to simulation mode
+    instead of showing the real error.
+
+    IMPORTANT, confirmed live by testing: registering a handler for the
+    base `Exception` class specifically makes Starlette route it through
+    its outermost ServerErrorMiddleware -- which sits OUTSIDE
+    CORSMiddleware by design (so even a crash inside a user middleware
+    still gets handled). That means CORSMiddleware never touches this
+    handler's response either, even though it's registered via
+    @app.exception_handler. The first version of this fix (just
+    returning a JSONResponse here) still had zero
+    access-control-allow-origin headers when tested with curl -i. The
+    only reliable fix is to set the CORS headers directly on this
+    response ourselves, mirroring the same permissive settings already
+    configured on CORSMiddleware above."""
+    from fastapi.responses import JSONResponse
+    import logging
+    import traceback
+
+    logging.getLogger("uvicorn.error").error(
+        "Unhandled exception in %s %s:\n%s", request.method, request.url.path, traceback.format_exc()
+    )
+    response = JSONResponse(status_code=500, content={"detail": f"{type(exc).__name__}: {exc}"})
+    origin = request.headers.get("origin")
+    if origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Vary"] = "Origin"
+    return response
+
+
 _prewarm_task = None  # keeps a strong reference so the startup background task can't be GC'd mid-run
 
 
@@ -139,6 +181,67 @@ def _save_upload_group(files: list[UploadFile]) -> str:
     return saved[0]
 
 
+# Real, measured constant, not a guess: registering an 8000x8000
+# (64-megapixel) real pair through this pipeline (backend/pipeline/
+# run_pipeline.py, classical matcher, gradient illumination mode) was
+# tracked live during this session's investigation and peaked at
+# ~6275MB RSS for the whole process -- 128M combined pixels across both
+# images, i.e. ~49 real bytes of peak working memory per combined
+# pixel. Rounded up to 64 for headroom across other matcher/illum_mode
+# code paths this measurement didn't cover.
+_PEAK_BYTES_PER_PIXEL = 64
+# Only ever budget this fraction of CURRENTLY available system memory
+# for one request's estimated peak -- leaves real headroom for the OS,
+# this process's own baseline footprint, and any other concurrent
+# request, rather than planning to use every last free byte.
+_MEMORY_SAFETY_FRACTION = 0.5
+
+
+def _image_pixel_count(path: str) -> int:
+    """Cheap, header-only pixel count wherever possible -- PIL's
+    Image.open() reads only the file header, not pixel data, for every
+    format it supports. Falls back to the file's real on-disk byte size
+    for formats PIL can't parse (e.g. a raw attached-label PDS3 .IMG);
+    treating 1 byte as ~1 pixel is a real, if imprecise, upper-bound
+    estimate for the single-band 8/16-bit rasters this project deals
+    with -- safe to overestimate here, never safe to underestimate."""
+    try:
+        from PIL import Image
+        with Image.open(path) as img:
+            w, h = img.size
+            return w * h
+    except Exception:
+        return os.path.getsize(path)
+
+
+def _check_upload_memory_budget(src_path: str, ref_path: str) -> None:
+    """Real, dynamic OOM guard: rejects a pair whose combined pixel
+    count, at this pipeline's own measured peak memory use per pixel,
+    would exceed a safe fraction of memory actually free on this
+    machine RIGHT NOW -- not a fixed byte limit, since what's actually
+    safe to process depends on what else is running on the server at
+    the moment, not on a number picked in advance."""
+    src_px = _image_pixel_count(src_path)
+    ref_px = _image_pixel_count(ref_path)
+    combined_px = src_px + ref_px
+    estimated_peak_bytes = combined_px * _PEAK_BYTES_PER_PIXEL
+    available_bytes = psutil.virtual_memory().available
+    budget_bytes = available_bytes * _MEMORY_SAFETY_FRACTION
+
+    if estimated_peak_bytes > budget_bytes:
+        raise HTTPException(
+            413,
+            detail=(
+                f"This pair is too large to process safely right now: estimated peak memory "
+                f"~{estimated_peak_bytes / 1e9:.2f}GB (source {src_px / 1e6:.1f}MP + reference "
+                f"{ref_px / 1e6:.1f}MP at this project's own measured ~{_PEAK_BYTES_PER_PIXEL} "
+                f"bytes/pixel peak), but only {available_bytes / 1e9:.2f}GB is currently free on "
+                f"the server (safety budget {budget_bytes / 1e9:.2f}GB, {_MEMORY_SAFETY_FRACTION:.0%} "
+                f"of that). Try a smaller/cropped image, or free up server memory and retry."
+            ),
+        )
+
+
 @app.post("/api/run")
 async def api_run(
     source: list[UploadFile] = File(...),
@@ -153,6 +256,7 @@ async def api_run(
     `illum_mode`: none/clahe/gradient/both — see preprocessing.illumination_normalize."""
     src_path = _save_upload_group(source)
     ref_path = _save_upload_group(reference)
+    _check_upload_memory_budget(src_path, ref_path)
     run_id = uuid.uuid4().hex[:12]
     out_dir = os.path.join(RUNS_DIR, run_id)
 
@@ -179,6 +283,7 @@ async def api_prepare_manual(
     coordinates) to /api/run_manual."""
     src_path = _save_upload_group(source)
     ref_path = _save_upload_group(reference)
+    _check_upload_memory_budget(src_path, ref_path)
 
     src_img = ingestion.load_image(src_path)
     ref_img = ingestion.load_image(ref_path)

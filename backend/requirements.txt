@@ -15,6 +15,11 @@ matplotlib
 geopandas
 shapely
 rasterio
+rioxarray
+xarray
+dask[array,distributed]
+rio-cogeo
+psutil
 
 # Optional deep matcher (LoFTR via kornia). ~700MB CPU wheel — install separately if
 # space/bandwidth is a concern; the pipeline falls back to classical SIFT cleanly if absent:

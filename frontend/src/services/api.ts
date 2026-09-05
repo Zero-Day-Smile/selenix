@@ -299,7 +299,18 @@ export async function runRegistration(
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => '');
-    throw new Error(`Backend error (${response.status}): ${errorText || response.statusText}`);
+    // FastAPI's HTTPException body is JSON ({"detail": "..."}) -- unwrap
+    // it so the real, specific message (e.g. the memory-budget guard's
+    // explanation of why a pair was rejected) shows up plainly instead
+    // of as raw escaped JSON text.
+    let detail = errorText;
+    try {
+      const parsed = JSON.parse(errorText);
+      if (typeof parsed?.detail === 'string') detail = parsed.detail;
+    } catch {
+      // not JSON -- fall back to the raw text as-is
+    }
+    throw new Error(`Backend error (${response.status}): ${detail || response.statusText}`);
   }
 
   const data: RunResult = await response.json();
