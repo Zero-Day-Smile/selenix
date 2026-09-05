@@ -54,7 +54,9 @@ feature + named-crater list for a footprint).
 """
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
+from typing import Callable, TypeVar
 
 import requests
 import yaml
@@ -64,6 +66,37 @@ WMS_URL = "https://webmap.lroc.asu.edu/wms"
 NOMENCLATURE_LAYER = "luna_moon_nomenclature"  # NOT luna_nomenclature -- see module docstring
 GAZETTEER_SEARCH_URL = "https://planetarynames.wr.usgs.gov/SearchResults"
 REQUEST_TIMEOUT_S = 15
+
+# Both real external services here are single, unauthenticated,
+# best-effort public endpoints (a university WMS, a USGS government
+# site) with no SLA -- a single slow response or transient connection
+# blip previously surfaced immediately as "could not reach", even
+# though a second attempt moments later often succeeds. This retries
+# real network-level failures only (timeout, connection error, 5xx) a
+# few times with a short real backoff -- never retries on a real parse
+# failure or a real 4xx, since those indicate the request itself is
+# wrong, not that the service is temporarily unavailable.
+_RETRY_ATTEMPTS = 3
+_RETRY_BACKOFF_S = 1.5
+
+_T = TypeVar("_T")
+
+
+def _with_retries(fn: Callable[[], _T]) -> _T:
+    last_exc: Exception | None = None
+    for attempt in range(_RETRY_ATTEMPTS):
+        try:
+            return fn()
+        except requests.exceptions.HTTPError as e:
+            if e.response is not None and e.response.status_code < 500:
+                raise  # a real 4xx means the request itself is wrong -- retrying won't help
+            last_exc = e
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+            last_exc = e
+        if attempt < _RETRY_ATTEMPTS - 1:
+            time.sleep(_RETRY_BACKOFF_S * (attempt + 1))
+    assert last_exc is not None
+    raise last_exc
 
 
 @dataclass
@@ -85,17 +118,22 @@ def get_nearest_named_feature(lat: float, lon: float, half_span_deg: float = 2.0
     genuine network/parse failure (those raise, caller decides how to
     report)."""
     bbox = f"{lon - half_span_deg},{lat - half_span_deg},{lon + half_span_deg},{lat + half_span_deg}"
-    resp = requests.get(
-        WMS_URL,
-        params={
-            "SERVICE": "WMS", "VERSION": "1.1.1", "REQUEST": "GetFeatureInfo",
-            "LAYERS": NOMENCLATURE_LAYER, "QUERY_LAYERS": NOMENCLATURE_LAYER,
-            "SRS": "EPSG:4326", "BBOX": bbox, "WIDTH": 256, "HEIGHT": 256,
-            "X": 128, "Y": 128, "INFO_FORMAT": "text/yaml",
-        },
-        timeout=REQUEST_TIMEOUT_S,
-    )
-    resp.raise_for_status()
+
+    def _do_request():
+        resp = requests.get(
+            WMS_URL,
+            params={
+                "SERVICE": "WMS", "VERSION": "1.1.1", "REQUEST": "GetFeatureInfo",
+                "LAYERS": NOMENCLATURE_LAYER, "QUERY_LAYERS": NOMENCLATURE_LAYER,
+                "SRS": "EPSG:4326", "BBOX": bbox, "WIDTH": 256, "HEIGHT": 256,
+                "X": 128, "Y": 128, "INFO_FORMAT": "text/yaml",
+            },
+            timeout=REQUEST_TIMEOUT_S,
+        )
+        resp.raise_for_status()
+        return resp
+
+    resp = _with_retries(_do_request)
     parsed = yaml.safe_load(resp.text) or {}
     features = parsed.get(NOMENCLATURE_LAYER) or []
     if not features:
@@ -208,22 +246,26 @@ def search_named_craters(lat_min: float, lat_max: float, lon_min: float, lon_max
     case, and the real 'no results' page (returns an empty list for
     that last one -- a real, valid, non-error outcome for small/sparse
     regions, not something to raise on)."""
-    resp = requests.post(
-        GAZETTEER_SEARCH_URL,
-        data={
-            "Target": "16_Moon",
-            "Feature Type": "9_Crater, craters",
-            "Southernmost Latitude": str(lat_min),
-            "Northernmost Latitude": str(lat_max),
-            "Westernmost Longitude": str(lon_min),
-            "Easternmost Longitude": str(lon_max),
-            "180 360": "0 - 360",
-            "East West": "+East",
-            "Centric Graphic": "Planetocentric",
-        },
-        timeout=REQUEST_TIMEOUT_S,
-    )
-    resp.raise_for_status()
+    def _do_request():
+        resp = requests.post(
+            GAZETTEER_SEARCH_URL,
+            data={
+                "Target": "16_Moon",
+                "Feature Type": "9_Crater, craters",
+                "Southernmost Latitude": str(lat_min),
+                "Northernmost Latitude": str(lat_max),
+                "Westernmost Longitude": str(lon_min),
+                "Easternmost Longitude": str(lon_max),
+                "180 360": "0 - 360",
+                "East West": "+East",
+                "Centric Graphic": "Planetocentric",
+            },
+            timeout=REQUEST_TIMEOUT_S,
+        )
+        resp.raise_for_status()
+        return resp
+
+    resp = _with_retries(_do_request)
     soup = BeautifulSoup(resp.text, "html.parser")
 
     if "/Feature/" in resp.url:
