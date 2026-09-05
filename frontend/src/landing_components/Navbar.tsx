@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Menu, Sun, Moon } from 'lucide-react';
+import logoImg from '../assets/logo.png';
 
 export type Page = 'landing' | 'workspace' | 'invariance' | 'registration-attempt';
 
@@ -97,7 +98,7 @@ export default function Navbar({ onNavigate, dark = false, theme, onToggleTheme 
           <div
             className={`w-6 h-6 rounded flex items-center justify-center transition-transform group-hover:scale-105 ${dark ? 'bg-white' : 'bg-black'}`}
           >
-            <div className={`w-3 h-3 rounded-full border border-t-transparent animate-spin ${dark ? 'border-black' : 'border-white'}`}></div>
+            <img src={logoImg} alt="" className={`w-4 h-4 object-contain ${dark ? '' : 'filter invert'}`} />
           </div>
           <span
             className={`font-bold tracking-widest text-xs ${dark ? 'text-white' : 'text-black'}`}

@@ -1,20 +1,23 @@
-// pages/Login.tsx
+// pages/Register.tsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import logoImg from '../assets/logo.png'; 
 
-export default function Login() {
+export default function Register() {
   const navigate = useNavigate();
   
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [errors, setErrors] = useState<{ fullName?: string; email?: string; password?: string }>({});
 
   const validateForm = () => {
-    const newErrors: { email?: string; password?: string } = {};
-    if (!email.trim()) newErrors.email = 'Please enter your username.';
+    const newErrors: typeof errors = {};
+    if (!fullName.trim()) newErrors.fullName = 'Please enter your full name.';
+    if (!email.trim()) newErrors.email = 'Please enter your email.';
     if (!password) newErrors.password = 'Please enter your password.';
+    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -29,7 +32,7 @@ export default function Login() {
     setTimeout(() => {
       setIsLoading(false);
       navigate('/workspace');
-    }, 850);
+    }, 1200);
   };
 
   return (
@@ -48,12 +51,41 @@ export default function Login() {
 
         {/* Form Container */}
         <div className="w-full max-w-sm mx-auto mt-12 lg:mt-0">
-          <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight mb-8">Sign In</h1>
+          <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight mb-8">Sign Up</h1>
           
           <form onSubmit={handleSubmit} noValidate className="space-y-6">
             <div>
+              <label htmlFor="fullName" className="block text-xs font-medium text-gray-400 mb-2">
+                Full Name
+              </label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                  </svg>
+                </span>
+                <input
+                  id="fullName"
+                  type="text"
+                  value={fullName}
+                  disabled={isLoading}
+                  onChange={(e) => {
+                    setFullName(e.target.value);
+                    if (errors.fullName) setErrors((prev) => ({ ...prev, fullName: undefined }));
+                  }}
+                  className={`w-full bg-transparent border rounded-md py-3.5 pl-11 pr-4 text-sm transition-colors focus:outline-none focus:border-white ${
+                    errors.fullName ? 'border-gray-500' : 'border-gray-800'
+                  }`}
+                  placeholder="Commander Shepard"
+                />
+              </div>
+              {errors.fullName && <p className="text-[11px] mt-1.5 text-gray-400">{errors.fullName}</p>}
+            </div>
+
+            <div>
               <label htmlFor="email" className="block text-xs font-medium text-gray-400 mb-2">
-                User Name
+                Email
               </label>
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
@@ -64,7 +96,7 @@ export default function Login() {
                 </span>
                 <input
                   id="email"
-                  type="text"
+                  type="email"
                   value={email}
                   disabled={isLoading}
                   onChange={(e) => {
@@ -74,7 +106,7 @@ export default function Login() {
                   className={`w-full bg-transparent border rounded-md py-3.5 pl-11 pr-4 text-sm transition-colors focus:outline-none focus:border-white ${
                     errors.email ? 'border-gray-500' : 'border-gray-800'
                   }`}
-                  placeholder="operator"
+                  placeholder="operator@selenix.space"
                 />
               </div>
               {errors.email && <p className="text-[11px] mt-1.5 text-gray-400">{errors.email}</p>}
@@ -109,15 +141,6 @@ export default function Login() {
               {errors.password && <p className="text-[11px] mt-1.5 text-gray-400">{errors.password}</p>}
             </div>
 
-            <div className="pt-2">
-              <button
-                type="button"
-                className="text-[10px] font-semibold text-gray-400 hover:text-white uppercase tracking-wider transition-colors focus:outline-none cursor-pointer"
-              >
-                Forgot Password?
-              </button>
-            </div>
-
             <button
               type="submit"
               disabled={isLoading}
@@ -126,7 +149,7 @@ export default function Login() {
               {isLoading ? (
                 <div className="w-4 h-4 rounded-full border-2 border-black border-t-transparent animate-spin" />
               ) : (
-                'SIGN IN'
+                'SIGN UP'
               )}
             </button>
           </form>
@@ -134,12 +157,12 @@ export default function Login() {
 
         {/* Footer */}
         <div className="mt-12 text-sm text-gray-500">
-          Don't have an account?{' '}
+          Already have an account?{' '}
           <button 
-            onClick={() => navigate('/register')}
+            onClick={() => navigate('/login')}
             className="text-white font-medium ml-1 hover:underline focus:outline-none cursor-pointer"
           >
-            Sign up
+            Sign in
           </button>
         </div>
       </div>
